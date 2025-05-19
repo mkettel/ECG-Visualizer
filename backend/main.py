@@ -270,7 +270,7 @@ app.add_middleware(
 # --- ECG Generation Constants ---
 FS = 250
 BASELINE_MV = 0.0
-MIN_REFRACTORY_PERIOD_SEC = 0.200
+MIN_REFRACTORY_PERIOD_SEC = 0.200 # Ventricular refractory after a QRS
 
 # --- Beat Morphology Definitions ---
 SINUS_PARAMS = {
@@ -297,47 +297,63 @@ BEAT_MORPHOLOGIES = {"sinus": SINUS_PARAMS, "pvc": PVC_PARAMS, "pac": PAC_PARAMS
 PVC_COUPLING_FACTOR = 0.60
 PAC_COUPLING_FACTOR = 0.70
 
-# --- Waveform Primitive & Single Beat Generation (gaussian_wave - no change) ---
+# --- Waveform Primitive & Single Beat Generation ---
 def gaussian_wave(t_points, center, amplitude, width_std_dev):
     if width_std_dev <= 1e-6: return np.zeros_like(t_points)
     return amplitude * np.exp(-((t_points - center)**2) / (2 * width_std_dev**2))
 
-# generate_single_beat_morphology (no change needed from previous version, as PR is in params)
-def generate_single_beat_morphology(params: Dict[str, float], fs: int = FS):
+def generate_single_beat_morphology(params: Dict[str, float], fs: int = FS, draw_only_p: bool = False):
     p_wave_total_offset = params.get('pr_interval', 0) if params.get('p_amplitude',0) !=0 else 0
     p_duration = params.get('p_duration', 0) if params.get('p_amplitude',0) !=0 else 0
-    qrs_duration = params.get('qrs_duration', 0.1)
-    st_duration = params.get('st_duration', 0.1)
-    t_duration = params.get('t_duration', 0.1)
+    
+    # If only drawing P, other components have zero duration for calculation purposes
+    qrs_duration = 0.0 if draw_only_p else params.get('qrs_duration', 0.1)
+    st_duration = 0.0 if draw_only_p else params.get('st_duration', 0.1)
+    t_duration = 0.0 if draw_only_p else params.get('t_duration', 0.1)
+    
     duration_from_p_onset_to_qrs_onset = p_wave_total_offset
     total_complex_duration = duration_from_p_onset_to_qrs_onset + \
-                             qrs_duration + st_duration + t_duration + 0.05
+                             qrs_duration + st_duration + t_duration + 0.05 # Padding for tail end
+    if draw_only_p: # If only P, total duration is just P duration + small padding
+        total_complex_duration = p_duration + 0.05 
+
+
     num_samples = int(total_complex_duration * fs)
     if num_samples <= 0: return np.array([]), np.array([]), 0.0
+
     t_relative_to_p_onset = np.linspace(0, total_complex_duration, num_samples, endpoint=False)
     beat_waveform = np.full(num_samples, BASELINE_MV)
+
     if params.get('p_amplitude', 0) != 0 and p_duration > 0:
-        p_center = p_duration / 2; p_width_std_dev = p_duration / 4
+        p_center = p_duration / 2
+        p_width_std_dev = p_duration / 4
         beat_waveform += gaussian_wave(t_relative_to_p_onset, p_center, params['p_amplitude'], p_width_std_dev)
-    qrs_onset_in_array_time = p_wave_total_offset
-    if qrs_duration > 0:
-        if params.get('q_amplitude', 0) != 0:
-            q_center = qrs_onset_in_array_time + qrs_duration * 0.15; q_width_std_dev = qrs_duration / 10
-            beat_waveform += gaussian_wave(t_relative_to_p_onset, q_center, params['q_amplitude'], q_width_std_dev)
-        if params.get('r_amplitude', 0) != 0:
-            r_center = qrs_onset_in_array_time + qrs_duration * 0.4; r_width_std_dev = qrs_duration / 6
-            beat_waveform += gaussian_wave(t_relative_to_p_onset, r_center, params['r_amplitude'], r_width_std_dev)
-        if params.get('s_amplitude', 0) != 0:
-            s_center = qrs_onset_in_array_time + qrs_duration * 0.75; s_width_std_dev = qrs_duration / 10
-            beat_waveform += gaussian_wave(t_relative_to_p_onset, s_center, params['s_amplitude'], s_width_std_dev)
-    t_onset_in_array_time = qrs_onset_in_array_time + qrs_duration + st_duration
-    if params.get('t_amplitude', 0) != 0 and t_duration > 0:
-        t_center = t_onset_in_array_time + t_duration / 2; t_width_std_dev = t_duration / 4
-        beat_waveform += gaussian_wave(t_relative_to_p_onset, t_center, params['t_amplitude'], t_width_std_dev)
+
+    if not draw_only_p:
+        qrs_onset_in_array_time = p_wave_total_offset
+        if qrs_duration > 0:
+            # QRS components
+            if params.get('q_amplitude', 0) != 0:
+                q_center = qrs_onset_in_array_time + qrs_duration * 0.15; q_width_std_dev = qrs_duration / 10
+                beat_waveform += gaussian_wave(t_relative_to_p_onset, q_center, params['q_amplitude'], q_width_std_dev)
+            if params.get('r_amplitude', 0) != 0:
+                r_center = qrs_onset_in_array_time + qrs_duration * 0.4; r_width_std_dev = qrs_duration / 6
+                beat_waveform += gaussian_wave(t_relative_to_p_onset, r_center, params['r_amplitude'], r_width_std_dev)
+            if params.get('s_amplitude', 0) != 0:
+                s_center = qrs_onset_in_array_time + qrs_duration * 0.75; s_width_std_dev = qrs_duration / 10
+                beat_waveform += gaussian_wave(t_relative_to_p_onset, s_center, params['s_amplitude'], s_width_std_dev)
+        
+        t_onset_in_array_time = qrs_onset_in_array_time + qrs_duration + st_duration
+        if params.get('t_amplitude', 0) != 0 and t_duration > 0:
+            # T-wave components
+            t_center = t_onset_in_array_time + t_duration / 2; t_width_std_dev = t_duration / 4
+            beat_waveform += gaussian_wave(t_relative_to_p_onset, t_center, params['t_amplitude'], t_width_std_dev)
+    
     return t_relative_to_p_onset, beat_waveform, p_wave_total_offset
 
+
 # --- Event-Driven Rhythm Generation ---
-class BeatEvent: # (no change)
+class BeatEvent:
     def __init__(self, time: float, beat_type: str, source: str = "sa_node"):
         self.time = time; self.beat_type = beat_type; self.source = source
     def __lt__(self, other): return self.time < other.time
@@ -347,7 +363,9 @@ def generate_physiologically_accurate_ecg(
     heart_rate_bpm: float, duration_sec: float,
     enable_pvc: bool, pvc_probability_per_sinus: float,
     enable_pac: bool, pac_probability_per_sinus: float,
-    first_degree_av_block_pr_sec: Optional[float], # New parameter
+    first_degree_av_block_pr_sec: Optional[float],
+    enable_mobitz_ii_av_block: bool, # New
+    mobitz_ii_p_waves_per_qrs: int,   # New (e.g., 2 for 2:1, 3 for 3:1)
     fs: int = FS
 ):
     base_rr_interval_sec = 60.0 / heart_rate_bpm
@@ -355,35 +373,74 @@ def generate_physiologically_accurate_ecg(
     full_time_axis_np = np.linspace(0, duration_sec, num_total_samples, endpoint=False)
     full_ecg_signal_np = np.full(num_total_samples, BASELINE_MV)
     event_queue: List[BeatEvent] = []
+    
     sa_node_next_fire_time = 0.0
     last_placed_qrs_onset_time = -base_rr_interval_sec
     ventricle_ready_for_next_qrs_at_time = 0.0
+    
+    # State for Mobitz II
+    p_wave_counter_for_mobitz_ii = 0 # Counts P-waves in current Mobitz cycle
+
     heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
 
     while event_queue and event_queue[0].time < duration_sec:
         current_event = heapq.heappop(event_queue)
         potential_qrs_onset_time = current_event.time
+        is_atrial_event = current_event.source == "sa_node" or current_event.beat_type == "pac" # or current_event.source == "pac_focus"
+        
+        # --- Prepare current beat parameters (can be overridden) ---
+        current_beat_morph_params = BEAT_MORPHOLOGIES[current_event.beat_type].copy()
+        if first_degree_av_block_pr_sec is not None and is_atrial_event:
+            current_beat_morph_params["pr_interval"] = first_degree_av_block_pr_sec
+        
+        # --- AV Conduction Logic (Mobitz II) ---
+        qrs_is_blocked_by_mobitz_ii = False
+        if enable_mobitz_ii_av_block and is_atrial_event:
+            p_wave_counter_for_mobitz_ii += 1
+            # Conduct if counter is 1 (first P of ratio), block others
+            if p_wave_counter_for_mobitz_ii % mobitz_ii_p_waves_per_qrs != 1 : 
+                qrs_is_blocked_by_mobitz_ii = True
+            
+            if p_wave_counter_for_mobitz_ii >= mobitz_ii_p_waves_per_qrs: # Reset counter after full ratio
+                p_wave_counter_for_mobitz_ii = 0
 
-        if potential_qrs_onset_time < ventricle_ready_for_next_qrs_at_time:
+
+        # --- Ventricular Refractory / QRS Blocking Check ---
+        if qrs_is_blocked_by_mobitz_ii or \
+           potential_qrs_onset_time < ventricle_ready_for_next_qrs_at_time:
+            
+            # If QRS is blocked but it's an atrial event (SA or PAC), we might still draw its P-wave
+            if is_atrial_event and qrs_is_blocked_by_mobitz_ii : # Draw P-wave for Mobitz II blocked beat
+                # Use modified params to ensure only P is drawn
+                _, y_p_wave_shape, p_wave_offset = generate_single_beat_morphology(current_beat_morph_params, fs, draw_only_p=True)
+                if len(y_p_wave_shape) > 0:
+                    p_wave_start_time_global = potential_qrs_onset_time - p_wave_offset # P starts before potential QRS time
+                    # ... (placement logic for y_p_wave_shape, similar to full beat placement) ...
+                    p_start_sample_idx_global = int(p_wave_start_time_global * fs)
+                    p_shape_start_idx, p_place_start_idx = 0, p_start_sample_idx_global
+                    if p_place_start_idx < 0: p_shape_start_idx = -p_place_start_idx; p_place_start_idx = 0
+                    
+                    p_samples_in_shape = len(y_p_wave_shape) - p_shape_start_idx
+                    p_samples_in_signal = num_total_samples - p_place_start_idx
+                    p_samples_to_copy = min(p_samples_in_shape, p_samples_in_signal)
+
+                    if p_samples_to_copy > 0:
+                        p_shape_end_idx = p_shape_start_idx + p_samples_to_copy
+                        p_place_end_idx = p_place_start_idx + p_samples_to_copy
+                        full_ecg_signal_np[p_place_start_idx : p_place_end_idx] += y_p_wave_shape[p_shape_start_idx : p_shape_end_idx]
+
+            # SA node still schedules its next intrinsic firing if its QRS was blocked
             if current_event.source == "sa_node":
                 sa_node_next_fire_time = max(sa_node_next_fire_time, potential_qrs_onset_time) + base_rr_interval_sec
                 if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time) < 0.001 for e in event_queue):
-                    heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
-            continue
+                     heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+            continue # Skip QRS placement and related state updates
 
-        # --- Get beat parameters and apply 1st Degree AV Block PR override if applicable ---
-        # Make a copy to modify locally for this beat instance
-        current_beat_morph_params = BEAT_MORPHOLOGIES[current_event.beat_type].copy()
-        
-        if first_degree_av_block_pr_sec is not None and \
-           (current_event.beat_type == "sinus" or current_event.beat_type == "pac"):
-            current_beat_morph_params["pr_interval"] = first_degree_av_block_pr_sec
-        
-        # --- Place the Beat (QRS is allowed) ---
+        # --- Place the Full Beat (QRS is conducted) ---
         _, y_beat_shape, qrs_offset_from_shape_start = generate_single_beat_morphology(current_beat_morph_params, fs)
         num_samples_beat_shape = len(y_beat_shape)
 
-        if num_samples_beat_shape > 0: # (Placement logic - no change)
+        if num_samples_beat_shape > 0: # (Full beat placement logic)
             waveform_start_time_global = potential_qrs_onset_time - qrs_offset_from_shape_start
             start_sample_index_global = int(waveform_start_time_global * fs)
             shape_start_idx, place_start_idx = 0, start_sample_index_global
@@ -398,7 +455,7 @@ def generate_physiologically_accurate_ecg(
         actual_rr_to_this_beat = potential_qrs_onset_time - last_placed_qrs_onset_time
         last_placed_qrs_onset_time = potential_qrs_onset_time
 
-        # --- Update State and Schedule Next Events (Logic for each beat type - no major changes here for 1st degree) ---
+        # --- Update State and Schedule Next Events ---
         if current_event.source == "sa_node":
             sa_node_next_fire_time = potential_qrs_onset_time + base_rr_interval_sec
             heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
@@ -426,20 +483,29 @@ def generate_physiologically_accurate_ecg(
     return full_time_axis_np.tolist(), full_ecg_signal_np.tolist()
 
 # --- API Endpoint Definition ---
-class AdvancedECGParams(BaseModel): # Updated
-    heart_rate_bpm: float = Field(60.0, gt=0)
+class AdvancedECGParams(BaseModel):
+    heart_rate_bpm: float = Field(60.0, gt=0) # Default HR to 60 for easier AV block observation
     duration_sec: float = Field(10.0, gt=0)
     enable_pvc: bool = Field(False)
     pvc_probability_per_sinus: float = Field(0.0, ge=0, le=1.0)
     enable_pac: bool = Field(False)
     pac_probability_per_sinus: float = Field(0.0, ge=0, le=1.0)
-    first_degree_av_block_pr_sec: Optional[float] = Field(None, ge=0.201, le=0.60, description="Target PR interval in seconds for 1st degree AV block (e.g., 0.24). If None/0, normal PR is used.")
+    first_degree_av_block_pr_sec: Optional[float] = Field(None, ge=0.201, le=0.60)
+    enable_mobitz_ii_av_block: bool = Field(False) # New
+    mobitz_ii_p_waves_per_qrs: int = Field(2, ge=2, description="Ratio of P-waves to QRS for Mobitz II (e.g., 2 for 2:1 block)") # New
 
 @app.post("/api/generate_advanced_ecg")
 async def get_advanced_ecg_data(params: AdvancedECGParams):
     description_parts = [f"Sinus {params.heart_rate_bpm}bpm"]
+    
+    av_block_desc = []
     if params.first_degree_av_block_pr_sec is not None:
-        description_parts.append(f"with 1st Degree AV Block (PR: {params.first_degree_av_block_pr_sec*1000:.0f}ms)")
+        av_block_desc.append(f"1st Degree AVB (PR: {params.first_degree_av_block_pr_sec*1000:.0f}ms)")
+    if params.enable_mobitz_ii_av_block:
+        av_block_desc.append(f"Mobitz II {params.mobitz_ii_p_waves_per_qrs}:1 AVB")
+    
+    if av_block_desc:
+        description_parts.append("with " + " & ".join(av_block_desc))
     
     ectopic_desc = []
     if params.enable_pac and params.pac_probability_per_sinus > 0:
@@ -448,11 +514,13 @@ async def get_advanced_ecg_data(params: AdvancedECGParams):
         ectopic_desc.append(f"PVCs ({params.pvc_probability_per_sinus*100:.0f}%)")
     
     if ectopic_desc:
-        description_parts.append("and " + " & ".join(ectopic_desc))
+        # Decide on conjunction based on whether AV block description was already added
+        conjunction = " and " if not av_block_desc else ", plus "
+        description_parts.append(conjunction + " & ".join(ectopic_desc))
     
-    description = " ".join(description_parts)
-    if len(description_parts) > 1 and ectopic_desc: # A bit clunky, fix grammar
-        description = description.replace(" and and", " and")
+    description = "".join(description_parts) # Join without spaces first, then refine
+    description = description.replace("with and", "with") # Grammar fix
+    description = description.replace("and , plus", ", plus")
 
 
     time_axis, ecg_signal = generate_physiologically_accurate_ecg(
@@ -462,7 +530,9 @@ async def get_advanced_ecg_data(params: AdvancedECGParams):
         pvc_probability_per_sinus=params.pvc_probability_per_sinus,
         enable_pac=params.enable_pac,
         pac_probability_per_sinus=params.pac_probability_per_sinus,
-        first_degree_av_block_pr_sec=params.first_degree_av_block_pr_sec, # Pass new param
+        first_degree_av_block_pr_sec=params.first_degree_av_block_pr_sec,
+        enable_mobitz_ii_av_block=params.enable_mobitz_ii_av_block, # Pass new
+        mobitz_ii_p_waves_per_qrs=params.mobitz_ii_p_waves_per_qrs, # Pass new
         fs=FS
     )
     return {"time_axis": time_axis, "ecg_signal": ecg_signal, "rhythm_generated": description}

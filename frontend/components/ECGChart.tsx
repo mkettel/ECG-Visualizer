@@ -46,6 +46,9 @@ interface AdvancedRequestBody {
   enable_pac: boolean;
   pac_probability_per_sinus: number;
   first_degree_av_block_pr_sec?: number | null;
+  enable_mobitz_ii_av_block?: boolean; // New
+  mobitz_ii_p_waves_per_qrs?: number;   // New
+
 }
 
 // Helper function to capitalize strings
@@ -73,6 +76,10 @@ const ECGChart: React.FC = () => {
   const [enableFirstDegreeAVBlock, setEnableFirstDegreeAVBlock] = useState<boolean>(false);
   const [firstDegreePrSec, setFirstDegreePrSec] = useState<number>(0.24); // Default prolonged PR
 
+  // New state for Mobitz II AV Block controls
+  const [enableMobitzIIAVBlock, setEnableMobitzIIAVBlock] = useState<boolean>(false);
+  const [mobitzIIPWavesPerQRS, setMobitzIIPWavesPerQRS] = useState<number>(3); // Default to 3:1 block (2 for 2:1)
+
   const [chartTitle, setChartTitle] = useState<string>('Simulated ECG');
   const chartRef = useRef<ChartJS<'line', number[], string> | null>(null);
 
@@ -94,6 +101,12 @@ const ECGChart: React.FC = () => {
       return;
     }
 
+    if (enableMobitzIIAVBlock && (mobitzIIPWavesPerQRS < 2)) {
+      setError("Mobitz II P-waves per QRS must be 2 or greater (for X:1 block).");
+      setIsLoading(false);
+      return;
+    }
+
     const requestBody: AdvancedRequestBody = {
       heart_rate_bpm: heartRate,
       duration_sec: duration,
@@ -102,6 +115,8 @@ const ECGChart: React.FC = () => {
       enable_pvc: enablePvc,
       pvc_probability_per_sinus: enablePvc ? pvcProbability : 0,
       first_degree_av_block_pr_sec: enableFirstDegreeAVBlock ? firstDegreePrSec : null,
+      enable_mobitz_ii_av_block: enableMobitzIIAVBlock, // New
+      mobitz_ii_p_waves_per_qrs: enableMobitzIIAVBlock ? mobitzIIPWavesPerQRS : 2, // Send if enabled, default if not
     };
 
     try {
@@ -232,10 +247,17 @@ const ECGChart: React.FC = () => {
     setFirstDegreePrSec(isNaN(val) ? 0.201 : Math.max(0.201, Math.min(0.60, val)));
   };
 
+  // Event Handlers for Mobitz II
+  const handleEnableMobitzIIAVBChange = (e: React.ChangeEvent<HTMLInputElement>) => setEnableMobitzIIAVBlock(e.target.checked);
+  const handleMobitzIIRatioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    setMobitzIIPWavesPerQRS(isNaN(val) ? 2 : Math.max(2, val)); // Ratio must be at least 2 (for 2:1)
+  };
+
   return (
     <div className="bg-[#0e1525] text-gray-100 rounded-md flex flex-col">
       {/* Main container */}
-      <div className="px-4 py-6 mx-auto w-full max-w-8xl">
+      <div className="px-4 py-6 mx-auto my-10 w-full max-w-8xl">
         {/* Title & controls layout */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
           {/* Title area */}
@@ -249,7 +271,7 @@ const ECGChart: React.FC = () => {
           </div>
           
           {/* Left side - Controls */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 overflow-scroll">
             <div className="bg-[#111827] rounded-xl p-6 h-full">
               {/* Basic Controls Section */}
               <div className="mb-6 pb-5 border-b border-gray-700">
@@ -393,43 +415,73 @@ const ECGChart: React.FC = () => {
                 </div>
               </div>
 
-              <div className='mb-6'> {/* Re-use style or create a new one */}
-                <h3 className='text-lg font-semibold mb-2 text-gray-200'>
-                    1st Degree AV Block
-                </h3>
-                <div className='flex items-center mb-2'>
-                    <input
-                        type="checkbox"
-                        id="enableFirstDegreeAVBlockCheckbox"
-                        checked={enableFirstDegreeAVBlock}
-                        onChange={(e) => setEnableFirstDegreeAVBlock(e.target.checked)}
-                        className='cursor-pointer'
-                    />
-                    <label htmlFor="enableFirstDegreeAVBlockCheckbox" className='ml-4'>Enable 1st Degree AV Block</label>
-                </div>
-                {enableFirstDegreeAVBlock && (
-                    <div>
-                        <label htmlFor="firstDegreePrInput" style={{ display: 'inline-block', marginRight:'5px'}}>PR Interval (sec):</label>
-                        <input
-                            id="firstDegreePrInput"
-                            type="number"
-                            value={firstDegreePrSec}
-                            onChange={(e) => {
-                                const val = parseFloat(e.target.value);
-                                setFirstDegreePrSec(isNaN(val) ? 0.21 : Math.max(0.201, Math.min(0.60, val))); // Clamp
-                            }}
-                            min="0.201" // Min valid PR for block
-                            max="0.60"  // Practical upper limit
-                            step="0.01"
-                            disabled={!enableFirstDegreeAVBlock}
-                            className='border border-gray-700 bg-[#1a2332] rounded-lg px-2 py-1 text-gray-300'
-                        />
-                        <span style={{fontSize: '0.8rem', marginLeft: '5px', color: '#9CA3AF'}}>
-                            ({(firstDegreePrSec * 1000).toFixed(0)} ms)
-                        </span>
+              <div className="mb-6 pb-5 border-b border-gray-700">
+                <h2 className="flex items-center text-lg font-semibold mb-2 text-gray-200">
+                  AV Conduction Settings
+                </h2>
+                <div className="space-y-5">
+                  {/* 1st Degree AV Block Controls */}
+                  <div className="bg-[#1a2332] rounded-lg p-4 border border-gray-800">
+                     {/* ... (1st Degree AV Block UI - no change) ... */}
+                     <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-medium text-gray-300">1st Degree AV Block</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableFirstDegreeAVBlockCheckbox" checked={enableFirstDegreeAVBlock} onChange={handleEnableFirstDegreeAVBChange} className="sr-only peer"/>
+                        <label htmlFor="enableFirstDegreeAVBlockCheckbox" className="block h-5 w-10 cursor-pointer rounded-full bg-gray-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"></label>
+                      </div>
                     </div>
-                )}
-            </div>
+                    {enableFirstDegreeAVBlock && (
+                      <div className="mt-3">
+                        <div className="flex justify-between items-center mb-1">
+                          <label htmlFor="firstDegreePrInput" className="text-xs font-medium text-gray-400">PR Interval (seconds)</label>
+                          <div className="text-right text-gray-300 text-xs">{firstDegreePrSec.toFixed(3)}s ({(firstDegreePrSec * 1000).toFixed(0)} ms)</div>
+                        </div>
+                        <input type="range" id="firstDegreePrInput" value={firstDegreePrSec} onChange={handleFirstDegreePrChange} min="0.201" max="0.60" step="0.001" disabled={!enableFirstDegreeAVBlock} className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"/>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mobitz Type II AV Block Controls - New */}
+                  <div className="bg-[#1a2332] rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-medium text-gray-300">2nd Degree AV Block Type II (Mobitz II)</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input
+                          type="checkbox"
+                          id="enableMobitzIICheckbox"
+                          checked={enableMobitzIIAVBlock}
+                          onChange={handleEnableMobitzIIAVBChange}
+                          className="sr-only peer"
+                        />
+                        <label
+                          htmlFor="enableMobitzIICheckbox"
+                          className="block h-5 w-10 cursor-pointer rounded-full bg-gray-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"
+                        ></label>
+                      </div>
+                    </div>
+                    {enableMobitzIIAVBlock && (
+                      <div className="mt-3">
+                        <label htmlFor="mobitzIIRatioInput" className="text-xs font-medium text-gray-400 block mb-1">
+                          P-waves per QRS (e.g., 3 for 3:1 Block):
+                        </label>
+                        <input
+                          id="mobitzIIRatioInput"
+                          type="number"
+                          value={mobitzIIPWavesPerQRS}
+                          onChange={handleMobitzIIRatioChange}
+                          min="2" // Minimum for a block (2:1)
+                          step="1"
+                          disabled={!enableMobitzIIAVBlock}
+                          className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-gray-300 text-sm focus:ring-red-500 focus:border-red-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            This sets a X:1 block, where X is the number entered. For {mobitzIIPWavesPerQRS}:1 block, 1 out of {mobitzIIPWavesPerQRS} P-waves conducts.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
               {/* Generate Button */}
               <button 
                 onClick={fetchEcgData} 
