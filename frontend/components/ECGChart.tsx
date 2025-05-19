@@ -255,14 +255,14 @@ const ECGChart: React.FC = () => {
   };
 
   return (
-    <div className="bg-[#0e1525] text-gray-100 rounded-md flex flex-col">
+    <div className="bg-gray-50 overflow-auto text-neutral-900 m-2 rounded-md flex flex-col">
       {/* Main container */}
       <div className="px-4 py-6 mx-auto my-10 w-full max-w-8xl">
         {/* Title & controls layout */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
           {/* Title area */}
           <div className="lg:col-span-4 mb-2">
-            <h1 className="text-2xl font-bold text-white mb-1 flex items-center">
+            <h1 className="text-2xl font-bold text-neutral-800 mb-1 flex items-center">
               <svg className="inline-block w-6 h-6 mr-2 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
               </svg>
@@ -272,10 +272,10 @@ const ECGChart: React.FC = () => {
           
           {/* Left side - Controls */}
           <div className="lg:col-span-1 overflow-scroll">
-            <div className="bg-[#111827] rounded-xl p-6 h-full">
+            <div className="bg-neutral-900 rounded-xl p-6 h-full">
               {/* Basic Controls Section */}
               <div className="mb-6 pb-5 border-b border-gray-700">
-                <h2 className="flex items-center text-lg font-semibold mb-2 text-gray-200">
+                <h2 className="flex items-center text-lg font-semibold mb-2 text-gray-50">
                   Basic Settings
                 </h2>
                 
@@ -283,10 +283,10 @@ const ECGChart: React.FC = () => {
                   {/* Heart Rate Control */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label htmlFor="hrInput" className="text-sm font-medium text-gray-300">
+                      <label htmlFor="hrInput" className="text-sm font-medium text-gray-100">
                         Heart Rate (bpm)
                       </label>
-                      <div className="text-right text-gray-400 text-lg font-medium">{heartRate}</div>
+                      <div className="text-right text-gray-100 text-lg font-medium">{heartRate}</div>
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -296,19 +296,19 @@ const ECGChart: React.FC = () => {
                         onChange={handleHeartRateChange}
                         min="30"
                         max="250"
-                        className="h-1 flex-grow cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"
+                        className="h-1 flex-grow cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"
                       />
-                      <div className="text-gray-500 text-xs w-12 text-right">bpm</div>
+                      <div className="text-gray-100 text-xs w-12 text-right">bpm</div>
                     </div>
                   </div>
                   
                   {/* Duration Control */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label htmlFor="durInput" className="text-sm font-medium text-gray-300">
+                      <label htmlFor="durInput" className="text-sm font-medium text-gray-100">
                         Duration (seconds)
                       </label>
-                      <div className="text-right text-gray-400 text-lg font-medium">{duration}</div>
+                      <div className="text-right text-gray-100 text-lg font-medium">{duration}</div>
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -318,9 +318,9 @@ const ECGChart: React.FC = () => {
                         onChange={handleDurationChange}
                         min="1"
                         max="60"
-                        className="h-1 flex-grow cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"
+                        className="h-1 flex-grow cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"
                       />
-                      <div className="text-gray-500 text-xs w-12 text-right">sec</div>
+                      <div className="text-gray-100 text-xs w-12 text-right">sec</div>
                     </div>
                   </div>
                 </div>
@@ -334,9 +334,9 @@ const ECGChart: React.FC = () => {
                 
                 <div className="space-y-5">
                   {/* PAC Controls */}
-                  <div className="bg-[#1a2332] rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="text-sm font-medium text-gray-300">Premature Atrial Contractions</h3>
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-medium text-neutral-100">Premature Atrial Contractions</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input
                           type="checkbox"
@@ -347,7 +347,7 @@ const ECGChart: React.FC = () => {
                         />
                         <label
                           htmlFor="enablePacCheckbox"
-                          className="block h-5 w-10 cursor-pointer rounded-full bg-gray-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"
+                          className="block h-5 w-10 cursor-pointer rounded-full bg-neutral-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"
                         ></label>
                       </div>
                     </div>
@@ -355,10 +355,10 @@ const ECGChart: React.FC = () => {
                     {enablePac && (
                       <div className="mt-3">
                         <div className="flex justify-between items-center mb-1">
-                          <label htmlFor="pacProbInput" className="text-xs font-medium text-gray-400">
+                          <label htmlFor="pacProbInput" className="text-xs font-medium text-neutral-300">
                             Probability per Sinus Beat
                           </label>
-                          <div className="text-right text-gray-300 text-xs">{pacProbability.toFixed(2)}</div>
+                          <div className="text-right text-neutral-300 text-xs">{pacProbability.toFixed(2)}</div>
                         </div>
                         <input
                           type="range"
@@ -367,16 +367,16 @@ const ECGChart: React.FC = () => {
                           min="0"
                           max="1"
                           step="0.01"
-                          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"
+                          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"
                         />
                       </div>
                     )}
                   </div>
 
                   {/* PVC Controls */}
-                  <div className="bg-[#1a2332] rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="text-sm font-medium text-gray-300">Premature Ventricular Contractions</h3>
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-medium text-neutral-300">Premature Ventricular Contractions</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input
                           type="checkbox"
@@ -387,7 +387,7 @@ const ECGChart: React.FC = () => {
                         />
                         <label
                           htmlFor="enablePvcCheckbox"
-                          className="block h-5 w-10 cursor-pointer rounded-full bg-gray-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"
+                          className="block h-5 w-10 cursor-pointer rounded-full bg-neutral-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"
                         ></label>
                       </div>
                     </div>
@@ -395,10 +395,10 @@ const ECGChart: React.FC = () => {
                     {enablePvc && (
                       <div className="mt-3">
                         <div className="flex justify-between items-center mb-1">
-                          <label htmlFor="pvcProbInput" className="text-xs font-medium text-gray-400">
+                          <label htmlFor="pvcProbInput" className="text-xs font-medium text-neutral-400">
                             Probability per Sinus Beat
                           </label>
-                          <div className="text-right text-gray-300 text-xs">{pvcProbability.toFixed(2)}</div>
+                          <div className="text-right text-neutral-300 text-xs">{pvcProbability.toFixed(2)}</div>
                         </div>
                         <input
                           type="range"
@@ -407,7 +407,7 @@ const ECGChart: React.FC = () => {
                           min="0"
                           max="1"
                           step="0.01"
-                          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"
+                          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"
                         />
                       </div>
                     )}
@@ -416,25 +416,25 @@ const ECGChart: React.FC = () => {
               </div>
 
               <div className="mb-6 pb-5 border-b border-gray-700">
-                <h2 className="flex items-center text-lg font-semibold mb-2 text-gray-200">
+                <h2 className="flex items-center text-lg font-semibold mb-2 text-neutral-200">
                   AV Conduction Settings
                 </h2>
                 <div className="space-y-5">
                   {/* 1st Degree AV Block Controls */}
-                  <div className="bg-[#1a2332] rounded-lg p-4 border border-gray-800">
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                      {/* ... (1st Degree AV Block UI - no change) ... */}
-                     <div className="flex justify-between items-center mb-3">
-                      <h3 className="text-sm font-medium text-gray-300">1st Degree AV Block</h3>
+                     <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-medium text-neutral-300">1st Degree AV Block</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableFirstDegreeAVBlockCheckbox" checked={enableFirstDegreeAVBlock} onChange={handleEnableFirstDegreeAVBChange} className="sr-only peer"/>
-                        <label htmlFor="enableFirstDegreeAVBlockCheckbox" className="block h-5 w-10 cursor-pointer rounded-full bg-gray-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"></label>
+                        <label htmlFor="enableFirstDegreeAVBlockCheckbox" className="block h-5 w-10 cursor-pointer rounded-full bg-neutral-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"></label>
                       </div>
                     </div>
                     {enableFirstDegreeAVBlock && (
                       <div className="mt-3">
                         <div className="flex justify-between items-center mb-1">
-                          <label htmlFor="firstDegreePrInput" className="text-xs font-medium text-gray-400">PR Interval (seconds)</label>
-                          <div className="text-right text-gray-300 text-xs">{firstDegreePrSec.toFixed(3)}s ({(firstDegreePrSec * 1000).toFixed(0)} ms)</div>
+                          <label htmlFor="firstDegreePrInput" className="text-xs font-medium text-neutral-400">PR Interval (seconds)</label>
+                          <div className="text-right text-neutral-300 text-xs">{firstDegreePrSec.toFixed(3)}s ({(firstDegreePrSec * 1000).toFixed(0)} ms)</div>
                         </div>
                         <input type="range" id="firstDegreePrInput" value={firstDegreePrSec} onChange={handleFirstDegreePrChange} min="0.201" max="0.60" step="0.001" disabled={!enableFirstDegreeAVBlock} className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"/>
                       </div>
@@ -442,9 +442,9 @@ const ECGChart: React.FC = () => {
                   </div>
 
                   {/* Mobitz Type II AV Block Controls - New */}
-                  <div className="bg-[#1a2332] rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="text-sm font-medium text-gray-300">2nd Degree AV Block Type II (Mobitz II)</h3>
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between gap-1 items-center">
+                      <h3 className="text-sm font-medium text-neutral-300">2nd Degree AV Block Type II (Mobitz II)</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input
                           type="checkbox"
@@ -455,13 +455,13 @@ const ECGChart: React.FC = () => {
                         />
                         <label
                           htmlFor="enableMobitzIICheckbox"
-                          className="block h-5 w-10 cursor-pointer rounded-full bg-gray-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"
+                          className="block h-5 w-10 cursor-pointer rounded-full bg-neutral-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"
                         ></label>
                       </div>
                     </div>
                     {enableMobitzIIAVBlock && (
                       <div className="mt-3">
-                        <label htmlFor="mobitzIIRatioInput" className="text-xs font-medium text-gray-400 block mb-1">
+                        <label htmlFor="mobitzIIRatioInput" className="text-xs font-medium text-neutral-400 block mb-1">
                           P-waves per QRS (e.g., 3 for 3:1 Block):
                         </label>
                         <input
@@ -472,7 +472,7 @@ const ECGChart: React.FC = () => {
                           min="2" // Minimum for a block (2:1)
                           step="1"
                           disabled={!enableMobitzIIAVBlock}
-                          className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-gray-300 text-sm focus:ring-red-500 focus:border-red-500"
+                          className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-neutral-300 text-sm focus:ring-red-500 focus:border-red-500"
                         />
                         <p className="text-xs text-gray-500 mt-1">
                             This sets a X:1 block, where X is the number entered. For {mobitzIIPWavesPerQRS}:1 block, 1 out of {mobitzIIPWavesPerQRS} P-waves conducts.
@@ -519,7 +519,7 @@ const ECGChart: React.FC = () => {
           
           {/* Right side - ECG Visualization */}
           <div className="lg:col-span-3">
-            <div className="bg-[#111827] rounded-xl overflow-hidden h-full flex flex-col border border-gray-800">
+            <div className="bg-neutral-900 rounded-xl overflow-hidden h-full flex flex-col border border-gray-800">
               {/* ECG Chart Title */}
               <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
                 <div className="font-medium text-gray-200">
