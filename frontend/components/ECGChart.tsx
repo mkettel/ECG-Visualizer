@@ -45,6 +45,7 @@ interface AdvancedRequestBody {
   pvc_probability_per_sinus: number;
   enable_pac: boolean;
   pac_probability_per_sinus: number;
+  first_degree_av_block_pr_sec?: number | null;
 }
 
 // Helper function to capitalize strings
@@ -59,7 +60,7 @@ const ECGChart: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // --- Control State ---
-  const [heartRate, setHeartRate] = useState<number>(75);
+  const [heartRate, setHeartRate] = useState<number>(60);
   const [duration, setDuration] = useState<number>(10);
 
   // New state for advanced ectopic controls
@@ -67,6 +68,10 @@ const ECGChart: React.FC = () => {
   const [pacProbability, setPacProbability] = useState<number>(0.1); // Default 10%
   const [enablePvc, setEnablePvc] = useState<boolean>(false);
   const [pvcProbability, setPvcProbability] = useState<number>(0.1); // Default 10%
+
+  // New state for AV block controls
+  const [enableFirstDegreeAVBlock, setEnableFirstDegreeAVBlock] = useState<boolean>(false);
+  const [firstDegreePrSec, setFirstDegreePrSec] = useState<number>(0.24); // Default prolonged PR
 
   const [chartTitle, setChartTitle] = useState<string>('Simulated ECG');
   const chartRef = useRef<ChartJSOrUndefined<'line', number[], string>>(null);
@@ -83,6 +88,12 @@ const ECGChart: React.FC = () => {
       return;
     }
 
+    if (enableFirstDegreeAVBlock && (firstDegreePrSec < 0.201 || firstDegreePrSec > 0.60)) {
+      setError("1st Degree AV Block PR interval must be between 0.201s and 0.60s.");
+      setIsLoading(false);
+      return;
+    }
+
     const requestBody: AdvancedRequestBody = {
       heart_rate_bpm: heartRate,
       duration_sec: duration,
@@ -90,6 +101,7 @@ const ECGChart: React.FC = () => {
       pac_probability_per_sinus: enablePac ? pacProbability : 0,
       enable_pvc: enablePvc,
       pvc_probability_per_sinus: enablePvc ? pvcProbability : 0,
+      first_degree_av_block_pr_sec: enableFirstDegreeAVBlock ? firstDegreePrSec : null,
     };
 
     try {
@@ -208,6 +220,18 @@ const ECGChart: React.FC = () => {
     setPvcProbability(isNaN(val) ? 0 : Math.max(0, Math.min(1, val)));
   };
 
+  // New Event Handlers for 1st Degree AV Block
+  const handleEnableFirstDegreeAVBChange = (e: React.ChangeEvent<HTMLInputElement>) => setEnableFirstDegreeAVBlock(e.target.checked);
+  const handleFirstDegreePrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    // Allow user to type, clamp on submission or use a different validation approach if desired
+    setFirstDegreePrSec(isNaN(val) ? 0.201 : val); // Keep current value if NaN for typing
+  };
+  const handleFirstDegreePrBlur = (e: React.ChangeEvent<HTMLInputElement>) => { // Clamp on blur
+    const val = parseFloat(e.target.value);
+    setFirstDegreePrSec(isNaN(val) ? 0.201 : Math.max(0.201, Math.min(0.60, val)));
+  };
+
   return (
     <div className="bg-[#0e1525] text-gray-100 rounded-md flex flex-col">
       {/* Main container */}
@@ -229,7 +253,7 @@ const ECGChart: React.FC = () => {
             <div className="bg-[#111827] rounded-xl p-6 h-full">
               {/* Basic Controls Section */}
               <div className="mb-6 pb-5 border-b border-gray-700">
-                <h2 className="flex items-center text-lg font-semibold mb-5 text-gray-200">
+                <h2 className="flex items-center text-lg font-semibold mb-2 text-gray-200">
                   Basic Settings
                 </h2>
                 
@@ -282,7 +306,7 @@ const ECGChart: React.FC = () => {
 
               {/* Ectopic Controls Section */}
               <div className="mb-6">
-                <h2 className="flex items-center font-semibold text-lg mb-5 text-gray-200">
+                <h2 className="flex items-center font-semibold text-lg mb-2 text-gray-200">
                   Ectopic Beat Settings
                 </h2>
                 
@@ -368,7 +392,44 @@ const ECGChart: React.FC = () => {
                   </div>
                 </div>
               </div>
-              
+
+              <div className='mb-6'> {/* Re-use style or create a new one */}
+                <h3 className='text-lg font-semibold mb-2 text-gray-200'>
+                    1st Degree AV Block
+                </h3>
+                <div className='flex items-center mb-2'>
+                    <input
+                        type="checkbox"
+                        id="enableFirstDegreeAVBlockCheckbox"
+                        checked={enableFirstDegreeAVBlock}
+                        onChange={(e) => setEnableFirstDegreeAVBlock(e.target.checked)}
+                        className='cursor-pointer'
+                    />
+                    <label htmlFor="enableFirstDegreeAVBlockCheckbox" className='ml-4'>Enable 1st Degree AV Block</label>
+                </div>
+                {enableFirstDegreeAVBlock && (
+                    <div>
+                        <label htmlFor="firstDegreePrInput" style={{ display: 'inline-block', marginRight:'5px'}}>PR Interval (sec):</label>
+                        <input
+                            id="firstDegreePrInput"
+                            type="number"
+                            value={firstDegreePrSec}
+                            onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setFirstDegreePrSec(isNaN(val) ? 0.21 : Math.max(0.201, Math.min(0.60, val))); // Clamp
+                            }}
+                            min="0.201" // Min valid PR for block
+                            max="0.60"  // Practical upper limit
+                            step="0.01"
+                            disabled={!enableFirstDegreeAVBlock}
+                            className='border border-gray-700 bg-[#1a2332] rounded-lg px-2 py-1 text-gray-300'
+                        />
+                        <span style={{fontSize: '0.8rem', marginLeft: '5px', color: '#9CA3AF'}}>
+                            ({(firstDegreePrSec * 1000).toFixed(0)} ms)
+                        </span>
+                    </div>
+                )}
+            </div>
               {/* Generate Button */}
               <button 
                 onClick={fetchEcgData} 
