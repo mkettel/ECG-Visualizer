@@ -257,17 +257,18 @@ const ECGChart: React.FC = () => {
   return (
     <div className="bg-gray-50 overflow-auto text-neutral-900 m-2 rounded-md flex flex-col">
       {/* Main container */}
-      <div className="px-4 py-6 mx-auto my-10 w-full max-w-8xl">
+      <div className="px-4 py-4 mx-auto w-full max-w-8xl">
         {/* Title & controls layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 mb-4">
           {/* Title area */}
           <div className="lg:col-span-4 mb-2">
-            <h1 className="text-2xl font-bold text-neutral-800 mb-1 flex items-center">
-              <svg className="inline-block w-6 h-6 mr-2 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <h1 className="text-2xl font-bold text-neutral-800 flex items-center">
+              {/* <svg className="inline-block w-6 h-6 mr-2 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-              </svg>
+              </svg> */}
               Advanced ECG Simulator
             </h1>
+            <p className='text-neutral-800 text-sm'>Utilize the different settings to create various heart rhythms. </p>
           </div>
           
           {/* Left side - Controls */}
