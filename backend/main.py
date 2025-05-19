@@ -279,15 +279,6 @@ SINUS_PARAMS = {
     "q_amplitude": -0.1, "r_amplitude": 1.0, "s_amplitude": -0.25,
     "t_amplitude": 0.3,
 }
-# PVC_PARAMS = {
-#     "p_duration": 0.0, "p_amplitude": 0.0, "pr_interval": 0.0,
-#     "qrs_duration": 0.16, "st_duration": 0.08, # Maybe slightly shorter ST
-#     "t_duration": 0.20, # Maybe slightly longer T
-#     "q_amplitude": -0.2,
-#     "r_amplitude": 0.8,
-#     "s_amplitude": -0.6,
-#     "t_amplitude": -0.45, # Make it more significantly negative
-# }
 PVC_PARAMS = { # New name to avoid overwriting your working one immediately
     "p_duration": 0.0, "p_amplitude": 0.0, "pr_interval": 0.0,
     

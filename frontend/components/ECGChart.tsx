@@ -1,6 +1,6 @@
 "use client"; // Required for Next.js App Router if using client-side hooks
 
-import React, { useState, useEffect, useRef, CSSProperties } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -12,10 +12,10 @@ import {
   Tooltip,
   Legend,
   Decimation,
-  ChartOptions, // For typing chart options
-  ChartData    // For typing chart data
+  ChartOptions,
+  ChartData
 } from 'chart.js';
-import { ChartJSOrUndefined } from 'react-chartjs-2/dist/types'; // For chartRef type
+import { ChartJSOrUndefined } from 'react-chartjs-2/dist/types';
 
 ChartJS.register(
   CategoryScale,
@@ -38,7 +38,6 @@ interface ECGAPIResponse extends ECGDataState {
   rhythm_generated: string;
 }
 
-// Updated RequestBody for the advanced endpoint
 interface AdvancedRequestBody {
   heart_rate_bpm: number;
   duration_sec: number;
@@ -53,7 +52,6 @@ const capitalizeFirstLetter = (string: string): string => {
   if (!string) return '';
   return string.charAt(0).toUpperCase() + string.slice(1);
 };
-
 
 const ECGChart: React.FC = () => {
   const [ecgData, setEcgData] = useState<ECGDataState>({ time_axis: [], ecg_signal: [] });
@@ -210,124 +208,265 @@ const ECGChart: React.FC = () => {
     setPvcProbability(isNaN(val) ? 0 : Math.max(0, Math.min(1, val)));
   };
 
-  // --- Styling ---
-  const inputStyle: CSSProperties = { marginRight: '10px', padding: '8px', borderRadius: '4px', border: '1px solid #4B5563', backgroundColor: '#374151', color: '#F3F4F6' };
-  const checkboxInputStyle: CSSProperties = { ...inputStyle, marginRight: '5px', padding: '0', verticalAlign: 'middle', width: 'auto', height: 'auto' };
-  const probabilityInputStyle: CSSProperties = { ...inputStyle, width: '80px' };
-  const labelStyle: CSSProperties = { display: 'block', marginBottom: '5px', color: '#D1D5DB', fontSize: '0.9rem' };
-  const checkboxLabelStyle: CSSProperties = { ...labelStyle, display: 'inline-block', marginBottom: '0', marginRight: '10px', verticalAlign: 'middle', cursor: 'pointer' };
-  const buttonStyle: CSSProperties = { padding: '10px 20px', borderRadius: '4px', border: 'none', backgroundColor: '#EF4444', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' };
-  const disabledButtonStyle: CSSProperties = { ...buttonStyle, backgroundColor: '#9CA3AF', cursor: 'not-allowed'};
-  const controlSectionStyle: CSSProperties = { marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #374151' };
-  const ectopicControlGroupStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center', alignItems: 'center', border: '1px solid #4B5563', padding: '15px', borderRadius: '6px', marginBottom: '10px'};
-  const mainContainerStyle: CSSProperties = { padding: '20px 30px', backgroundColor: '#1F2937', color: '#F3F4F6', borderRadius: '8px', maxWidth: '1100px', margin: '30px auto', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' };
-  const chartContainerStyle: CSSProperties = { height: '450px', width: '100%', border: '1px solid #4B5563', padding: '10px', borderRadius: '4px', backgroundColor: '#111827', marginTop: '20px' };
-
   return (
-    <div style={mainContainerStyle}>
-      <h1 style={{ textAlign: 'center', marginBottom: '30px', color: '#F9FAFB', fontSize: '2.2rem', fontWeight: 'bold' }}>
-        Advanced ECG Simulator
-      </h1>
-
-      {/* Basic Controls Section */}
-      <div style={controlSectionStyle}>
-        <h2 style={{marginTop: 0, marginBottom: '15px', fontSize: '1.2rem', color: '#E5E7EB'}}>Basic Settings</h2>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center', alignItems: 'flex-end' }}>
-            <div>
-                <label htmlFor="hrInput" style={labelStyle}>Heart Rate (bpm):</label>
-                <input id="hrInput" type="number" value={heartRate} onChange={handleHeartRateChange} min="30" max="250" style={inputStyle} />
-            </div>
-            <div>
-                <label htmlFor="durInput" style={labelStyle}>Duration (s):</label>
-                <input id="durInput" type="number" value={duration} onChange={handleDurationChange} min="1" max="60" style={inputStyle} />
-            </div>
-        </div>
-      </div>
-
-      {/* Ectopic Controls Section */}
-      <div style={controlSectionStyle}>
-        <h2 style={{marginTop: 0, marginBottom: '15px', fontSize: '1.2rem', color: '#E5E7EB'}}>Ectopic Beat Settings</h2>
-        <div className='flex' style={{display: 'flex', justifyContent: 'space-around', gap: '20px'}}>
-            {/* PAC Controls */}
-            <div style={ectopicControlGroupStyle}>
-                <h3 style={{width: '100%', textAlign:'center', marginTop: '0', marginBottom: '10px', fontSize: '1rem', color: '#E5E7EB'}}>Premature Atrial Contractions (PACs)</h3>
-                <div>
-                    <input
-                        type="checkbox"
-                        id="enablePacCheckbox"
-                        checked={enablePac}
-                        onChange={handleEnablePacChange}
-                        style={checkboxInputStyle}
-                    />
-                    <label htmlFor="enablePacCheckbox" style={checkboxLabelStyle}>Enable PACs</label>
-                </div>
-                {enablePac && (
-                    <div>
-                        <label htmlFor="pacProbInput" style={{...labelStyle, display: 'inline-block', marginRight:'5px'}}>Probability (0-1):</label>
-                        <input
-                            id="pacProbInput"
-                            type="number"
-                            value={pacProbability}
-                            onChange={handlePacProbabilityChange}
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            style={probabilityInputStyle}
-                            disabled={!enablePac}
-                        />
+    <div className="bg-[#0e1525] text-gray-100 rounded-md flex flex-col">
+      {/* Main container */}
+      <div className="px-4 py-6 mx-auto w-full max-w-8xl">
+        {/* Title & controls layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
+          {/* Title area */}
+          <div className="lg:col-span-4 mb-2">
+            <h1 className="text-2xl font-bold text-white mb-1 flex items-center">
+              <svg className="inline-block w-6 h-6 mr-2 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+              Advanced ECG Simulator
+            </h1>
+          </div>
+          
+          {/* Left side - Controls */}
+          <div className="lg:col-span-1">
+            <div className="bg-[#111827] rounded-xl p-6 h-full">
+              {/* Basic Controls Section */}
+              <div className="mb-6 pb-5 border-b border-gray-700">
+                <h2 className="flex items-center text-lg font-semibold mb-5 text-gray-200">
+                  Basic Settings
+                </h2>
+                
+                <div className="space-y-6">
+                  {/* Heart Rate Control */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label htmlFor="hrInput" className="text-sm font-medium text-gray-300">
+                        Heart Rate (bpm)
+                      </label>
+                      <div className="text-right text-gray-400 text-lg font-medium">{heartRate}</div>
                     </div>
-                )}
-            </div>
-
-            {/* PVC Controls */}
-            <div style={ectopicControlGroupStyle}>
-                <h3 style={{width: '100%', textAlign:'center', marginTop: '0', marginBottom: '10px', fontSize: '1rem', color: '#E5E7EB'}}>Premature Ventricular Contractions (PVCs)</h3>
-                <div>
-                    <input
-                        type="checkbox"
-                        id="enablePvcCheckbox"
-                        checked={enablePvc}
-                        onChange={handleEnablePvcChange}
-                        style={checkboxInputStyle}
-                    />
-                    <label htmlFor="enablePvcCheckbox" style={checkboxLabelStyle}>Enable PVCs</label>
-                </div>
-                {enablePvc && (
-                    <div>
-                        <label htmlFor="pvcProbInput" style={{...labelStyle, display: 'inline-block', marginRight:'5px'}}>Probability (0-1):</label>
-                        <input
-                            id="pvcProbInput"
-                            type="number"
-                            value={pvcProbability}
-                            onChange={handlePvcProbabilityChange}
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            style={probabilityInputStyle}
-                            disabled={!enablePvc}
-                        />
+                    
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        value={heartRate}
+                        onChange={handleHeartRateChange}
+                        min="30"
+                        max="250"
+                        className="h-1 flex-grow cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"
+                      />
+                      <div className="text-gray-500 text-xs w-12 text-right">bpm</div>
                     </div>
-                )}
-            </div>
-        </div>
-      </div>
-      
-      <div style={{textAlign: 'center', marginTop: '30px'}}>
-        <button onClick={fetchEcgData} disabled={isLoading} style={isLoading ? disabledButtonStyle : buttonStyle}>
-          {isLoading ? 'Generating...' : 'Regenerate ECG'}
-        </button>
-      </div>
+                  </div>
+                  
+                  {/* Duration Control */}
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label htmlFor="durInput" className="text-sm font-medium text-gray-300">
+                        Duration (seconds)
+                      </label>
+                      <div className="text-right text-gray-400 text-lg font-medium">{duration}</div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        value={duration}
+                        onChange={handleDurationChange}
+                        min="1"
+                        max="60"
+                        className="h-1 flex-grow cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"
+                      />
+                      <div className="text-gray-500 text-xs w-12 text-right">sec</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-      {error && <p style={{ color: '#F87171', textAlign: 'center', margin: '20px 0', padding: '10px', backgroundColor: '#7f1d1d50', borderRadius: '4px', fontWeight:'bold' }}>Error: {error}</p>}
-      
-      <div style={chartContainerStyle}>
-        {isLoading && <p style={{ textAlign: 'center', marginTop: '20px', color: '#9CA3AF' }}>Loading chart data...</p>}
-        {!isLoading && ecgData.time_axis.length > 0 && (
-          <Line ref={chartRef} options={chartOptions} data={chartDataConfig} />
-        )}
-        {!isLoading && ecgData.time_axis.length === 0 && !error && (
-          <p style={{ textAlign: 'center', marginTop: '20px', color: '#9CA3AF' }}>No ECG data to display. Adjust parameters and click "Regenerate ECG".</p>
-        )}
+              {/* Ectopic Controls Section */}
+              <div className="mb-6">
+                <h2 className="flex items-center font-semibold text-lg mb-5 text-gray-200">
+                  Ectopic Beat Settings
+                </h2>
+                
+                <div className="space-y-5">
+                  {/* PAC Controls */}
+                  <div className="bg-[#1a2332] rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-medium text-gray-300">Premature Atrial Contractions</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input
+                          type="checkbox"
+                          id="enablePacCheckbox"
+                          checked={enablePac}
+                          onChange={handleEnablePacChange}
+                          className="sr-only peer"
+                        />
+                        <label
+                          htmlFor="enablePacCheckbox"
+                          className="block h-5 w-10 cursor-pointer rounded-full bg-gray-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"
+                        ></label>
+                      </div>
+                    </div>
+                    
+                    {enablePac && (
+                      <div className="mt-3">
+                        <div className="flex justify-between items-center mb-1">
+                          <label htmlFor="pacProbInput" className="text-xs font-medium text-gray-400">
+                            Probability per Sinus Beat
+                          </label>
+                          <div className="text-right text-gray-300 text-xs">{pacProbability.toFixed(2)}</div>
+                        </div>
+                        <input
+                          type="range"
+                          value={pacProbability}
+                          onChange={handlePacProbabilityChange}
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* PVC Controls */}
+                  <div className="bg-[#1a2332] rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-medium text-gray-300">Premature Ventricular Contractions</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input
+                          type="checkbox"
+                          id="enablePvcCheckbox"
+                          checked={enablePvc}
+                          onChange={handleEnablePvcChange}
+                          className="sr-only peer"
+                        />
+                        <label
+                          htmlFor="enablePvcCheckbox"
+                          className="block h-5 w-10 cursor-pointer rounded-full bg-gray-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"
+                        ></label>
+                      </div>
+                    </div>
+                    
+                    {enablePvc && (
+                      <div className="mt-3">
+                        <div className="flex justify-between items-center mb-1">
+                          <label htmlFor="pvcProbInput" className="text-xs font-medium text-gray-400">
+                            Probability per Sinus Beat
+                          </label>
+                          <div className="text-right text-gray-300 text-xs">{pvcProbability.toFixed(2)}</div>
+                        </div>
+                        <input
+                          type="range"
+                          value={pvcProbability}
+                          onChange={handlePvcProbabilityChange}
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Generate Button */}
+              <button 
+                onClick={fetchEcgData} 
+                disabled={isLoading}
+                className={`
+                  w-full px-3 py-3 rounded-lg text-white font-medium shadow
+                  transition-all
+                  ${isLoading 
+                    ? 'bg-gray-700 cursor-not-allowed' 
+                    : 'bg-red-500 hover:bg-red-600 active:bg-red-700'
+                  }
+                `}
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center">
+                    <svg className="mr-1" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2v4a1 1 0 0 0 1 1h4"></path>
+                      <path d="M18 9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7"></path>
+                      <path d="M3 12h5l2 3 3-6 2 3h6"></path>
+                    </svg>
+                    Generate ECG
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+          
+          {/* Right side - ECG Visualization */}
+          <div className="lg:col-span-3">
+            <div className="bg-[#111827] rounded-xl overflow-hidden h-full flex flex-col border border-gray-800">
+              {/* ECG Chart Title */}
+              <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
+                <div className="font-medium text-gray-200">
+                  {chartTitle || 'ECG Signal'}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {heartRate} bpm, {duration}s
+                </div>
+              </div>
+              
+              {/* Error message if needed */}
+              {error && (
+                <div className="m-4 bg-red-900/30 border border-red-800 text-red-200 px-3 py-2 rounded-md text-sm flex items-center" role="alert">
+                  <svg className="mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                  <span>{error}</span>
+                </div>
+              )}
+              
+              {/* ECG Chart */}
+              <div className="p-4 flex-grow relative">
+                {isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm z-10">
+                    <div className="text-center">
+                      <div className="animate-pulse flex space-x-2 justify-center mb-2">
+                        <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+                      </div>
+                      <p className="text-gray-400 text-sm">Generating ECG data...</p>
+                    </div>
+                  </div>
+                )}
+                
+                {!isLoading && ecgData.time_axis.length > 0 && (
+                  <Line ref={chartRef} options={chartOptions} data={chartDataConfig} />
+                )}
+                
+                {!isLoading && ecgData.time_axis.length === 0 && !error && (
+                  <div className="h-full flex items-center justify-center">
+                    <div className="text-center text-gray-500">
+                      <svg className="mx-auto h-10 w-10 text-gray-600 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm">No ECG data to display</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer with info */}
+              <div className="px-4 py-2 border-t border-gray-800 text-xs text-gray-500">
+                * This is a simulated ECG for educational purposes only
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
