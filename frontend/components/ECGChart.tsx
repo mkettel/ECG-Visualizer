@@ -15,7 +15,7 @@ import {
   ChartOptions,
   ChartData
 } from 'chart.js';
-import { ChartJSOrUndefined } from 'react-chartjs-2/dist/types';
+import type { ChartProps } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -74,7 +74,7 @@ const ECGChart: React.FC = () => {
   const [firstDegreePrSec, setFirstDegreePrSec] = useState<number>(0.24); // Default prolonged PR
 
   const [chartTitle, setChartTitle] = useState<string>('Simulated ECG');
-  const chartRef = useRef<ChartJSOrUndefined<'line', number[], string>>(null);
+  const chartRef = useRef<ChartJS<'line', number[], string> | null>(null);
 
   const fetchEcgData = async () => {
     setIsLoading(true);
