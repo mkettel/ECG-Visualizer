@@ -53,14 +53,23 @@ VENTRICULAR_ESCAPE_PARAMS = {
 AFIB_CONDUCTED_QRS_PARAMS = SINUS_PARAMS.copy()
 AFIB_CONDUCTED_QRS_PARAMS.update({"p_amplitude": 0.0, "p_duration": 0.0, "pr_interval": 0.001})
 
-FLUTTER_WAVE_PARAMS = { # Parameters for the flutter wave itself
-    "p_duration": 0.10, # Will be set by flutter rate, this is a placeholder if used directly
-    "p_amplitude": -0.2, # Typical negative deflection in inferior leads
+FLUTTER_WAVE_PARAMS = { 
+    "p_duration": 0.10, 
+    "p_amplitude": -0.2, 
     "pr_interval": 0.0, "qrs_duration": 0.0, "st_duration": 0.0, "t_duration": 0.0,
     "q_amplitude":0.0, "r_amplitude":0.0, "s_amplitude":0.0, "t_amplitude":0.0,
 }
-FLUTTER_CONDUCTED_QRS_PARAMS = SINUS_PARAMS.copy() # For QRS conducted from flutter
+FLUTTER_CONDUCTED_QRS_PARAMS = SINUS_PARAMS.copy() 
 FLUTTER_CONDUCTED_QRS_PARAMS.update({"p_amplitude": 0.0, "p_duration": 0.0, "pr_interval": 0.14})
+
+# NEW: SVT Beat Morphology (AVNRT-like with hidden P)
+SVT_BEAT_PARAMS = SINUS_PARAMS.copy()
+SVT_BEAT_PARAMS.update({
+    "p_duration": 0.0,  # P-wave hidden
+    "p_amplitude": 0.0, # P-wave hidden
+    "pr_interval": 0.001, # Effectively no PR interval as P is hidden/simultaneous
+    # QRS, ST, T are normal (supraventricular origin)
+})
 
 
 BEAT_MORPHOLOGIES = {
@@ -69,14 +78,15 @@ BEAT_MORPHOLOGIES = {
     "ventricular_escape": VENTRICULAR_ESCAPE_PARAMS,
     "afib_conducted": AFIB_CONDUCTED_QRS_PARAMS,
     "flutter_wave": FLUTTER_WAVE_PARAMS,
-    "flutter_conducted_qrs": FLUTTER_CONDUCTED_QRS_PARAMS
+    "flutter_conducted_qrs": FLUTTER_CONDUCTED_QRS_PARAMS,
+    "svt_beat": SVT_BEAT_PARAMS, # NEW
 }
 
 # --- Ectopic Beat Configuration Constants ---
 PVC_COUPLING_FACTOR = 0.60
 PAC_COUPLING_FACTOR = 0.70
 
-# --- Waveform Primitive & Single Beat Generation ---
+# --- Waveform Primitive & Single Beat Generation (unchanged from provided code) ---
 def gaussian_wave(t_points, center, amplitude, width_std_dev):
     if width_std_dev <= 1e-9: return np.zeros_like(t_points)
     return amplitude * np.exp(-((t_points - center)**2) / (2 * width_std_dev**2))
@@ -131,7 +141,7 @@ def generate_single_beat_morphology(params: Dict[str, float], fs: int = FS, draw
             beat_waveform += gaussian_wave(t_relative_to_p_onset, t_center, params['t_amplitude'], t_width_std_dev)
     return t_relative_to_p_onset, beat_waveform, p_wave_total_offset
 
-# --- Fibrillatory Wave Generation for AFib ---
+# --- Fibrillatory Wave Generation for AFib (unchanged) ---
 def generate_fibrillatory_waves(duration_sec: float, amplitude_mv: float, fs: int = FS):
     num_samples = int(duration_sec * fs)
     time_axis = np.linspace(0, duration_sec, num_samples, endpoint=False)
@@ -173,6 +183,9 @@ def generate_physiologically_accurate_ecg(
     afib_fibrillation_wave_amplitude_mv: float, afib_irregularity_factor: float,
     enable_atrial_flutter: bool, atrial_flutter_rate_bpm: int,
     atrial_flutter_av_block_ratio_qrs_to_f: int, atrial_flutter_wave_amplitude_mv: float,
+    # NEW SVT PARAMS
+    enable_svt: bool,
+    svt_rate_bpm: int,
     fs: int = FS
 ):
     base_rr_interval_sec = 60.0 / heart_rate_bpm
@@ -181,22 +194,34 @@ def generate_physiologically_accurate_ecg(
     full_ecg_signal_np = np.full(num_total_samples, BASELINE_MV)
     event_queue: List[BeatEvent] = []
     
-    sa_node_next_fire_time = 0.0
-    last_placed_qrs_onset_time = -base_rr_interval_sec
-    ventricle_ready_for_next_qrs_at_time = 0.0
+    sa_node_next_fire_time = 0.0 # Used if SA node is the pacer
+    last_placed_qrs_onset_time = -base_rr_interval_sec # Tracks last ventricular activation
+    ventricle_ready_for_next_qrs_at_time = 0.0 # Ventricular refractory period end
     
     p_wave_counter_for_mobitz_ii = 0
     current_wenckebach_pr_sec = wenckebach_initial_pr_sec if enable_mobitz_i_wenckebach else None
 
     # --- Determine Active Dominant Rhythm & Initialize Pacemakers ---
-    is_aflutter_active = enable_atrial_flutter
-    is_afib_active = enable_atrial_fibrillation and not is_aflutter_active
-    is_third_degree_block_active = enable_third_degree_av_block and not is_afib_active and not is_aflutter_active
+    is_svt_active = enable_svt
+    is_aflutter_active = enable_atrial_flutter and not is_svt_active
+    is_afib_active = enable_atrial_fibrillation and not is_aflutter_active and not is_svt_active
+    is_third_degree_block_active = enable_third_degree_av_block and not is_afib_active and not is_aflutter_active and not is_svt_active
+
+    # These AV block flags are for non-dominant rhythm scenarios
+    is_mobitz_i_active = enable_mobitz_i_wenckebach and not is_svt_active and not is_aflutter_active and not is_afib_active and not is_third_degree_block_active
+    is_mobitz_ii_active = enable_mobitz_ii_av_block and not is_svt_active and not is_aflutter_active and not is_afib_active and not is_third_degree_block_active and not is_mobitz_i_active
+    is_first_degree_av_block_active = (first_degree_av_block_pr_sec is not None) and not is_svt_active and not is_aflutter_active and not is_afib_active and not is_third_degree_block_active and not is_mobitz_i_active and not is_mobitz_ii_active
 
     flutter_wave_rr_interval_sec = 0.0
     flutter_wave_counter_for_av_block = 0
     
-    if is_aflutter_active:
+    if is_svt_active:
+        event_queue.clear()
+        svt_rr_interval_sec = 60.0 / svt_rate_bpm
+        # Start SVT slightly after t=0 to allow for potential initiation visualization later
+        initial_svt_delay = np.random.uniform(0.05, svt_rr_interval_sec * 0.3) 
+        heapq.heappush(event_queue, BeatEvent(initial_svt_delay, "svt_beat", "svt_focus"))
+    elif is_aflutter_active:
         event_queue.clear()
         flutter_wave_rr_interval_sec = 60.0 / atrial_flutter_rate_bpm
         heapq.heappush(event_queue, BeatEvent(0.0, "flutter_wave", "aflutter_focus"))
@@ -206,17 +231,19 @@ def generate_physiologically_accurate_ecg(
         first_qrs_delay = np.random.uniform(0.1, mean_afib_rr_sec * 0.6)
         heapq.heappush(event_queue, BeatEvent(first_qrs_delay, "afib_conducted", "afib_av_node"))
     elif is_third_degree_block_active:
-        heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+        heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node")) # SA node P-waves
         escape_beat_type = "junctional_escape" if third_degree_escape_rhythm_origin == "junctional" else "ventricular_escape"
         default_escape_rate = 45.0 if third_degree_escape_rhythm_origin == "junctional" else 30.0
         actual_escape_rate_bpm = third_degree_escape_rate_bpm or default_escape_rate
         escape_rr_interval_sec = 60.0 / actual_escape_rate_bpm
+        
+        # Try to make escape beat appear after first P if possible
         sinus_pr_for_offset = SINUS_PARAMS["pr_interval"]
-        if first_degree_av_block_pr_sec is not None and not enable_mobitz_i_wenckebach and not enable_mobitz_ii_av_block: # Ensure 1st deg PR is used if no other block
-            sinus_pr_for_offset = first_degree_av_block_pr_sec
+        if is_first_degree_av_block_active: sinus_pr_for_offset = first_degree_av_block_pr_sec
+
         first_escape_fire_time = max(0.1, sinus_pr_for_offset + np.random.uniform(0.05, 0.15))
         heapq.heappush(event_queue, BeatEvent(first_escape_fire_time, escape_beat_type, f"{third_degree_escape_rhythm_origin}_escape"))
-    else: # Sinus rhythm base
+    else: # Sinus rhythm base (potentially with 1st/2nd degree AV blocks)
         heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
 
     # --- Main Event Loop ---
@@ -229,12 +256,23 @@ def generate_physiologically_accurate_ecg(
         is_afib_qrs_event = current_event.source == "afib_av_node"
         is_flutter_wave_event = current_event.beat_type == "flutter_wave"
         is_flutter_conducted_qrs_event = current_event.beat_type == "flutter_conducted_qrs"
+        is_svt_beat_event = current_event.beat_type == "svt_beat" # NEW
+
+        # If a dominant tachyarrhythmia is active, ignore SA node or PAC events for ECG generation
+        if (is_svt_active or is_aflutter_active or is_afib_active) and is_atrial_origin_event:
+            if current_event.source == "sa_node": # Keep SA node "ticking" conceptually if it's for base rate
+                 sa_node_next_fire_time = max(sa_node_next_fire_time, potential_event_time) + base_rr_interval_sec
+                 # Only reschedule if no other dominant atrial rhythm is active
+                 if not (is_svt_active or is_aflutter_active or is_afib_active or is_third_degree_block_active):
+                    if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time) < 0.001 for e in event_queue):
+                        heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+            continue # Don't draw P or QRS for these if SVT/AFib/AFlutter is dominant
 
         current_beat_morph_params = BEAT_MORPHOLOGIES[current_event.beat_type].copy()
         qrs_is_blocked_by_av_node = False
         draw_p_wave_only_for_this_atrial_event = False
         
-        if is_flutter_wave_event:
+        if is_flutter_wave_event: # Flutter wave handling is separate as it's just an atrial wave
             flutter_wave_params_local = BEAT_MORPHOLOGIES["flutter_wave"].copy()
             flutter_wave_params_local["p_amplitude"] = atrial_flutter_wave_amplitude_mv
             flutter_wave_params_local["p_duration"] = flutter_wave_rr_interval_sec
@@ -251,7 +289,7 @@ def generate_physiologically_accurate_ecg(
             conducts_this_flutter_wave = (flutter_wave_counter_for_av_block % atrial_flutter_av_block_ratio_qrs_to_f == 0)
             
             if conducts_this_flutter_wave and potential_event_time >= ventricle_ready_for_next_qrs_at_time:
-                flutter_qrs_pr = FLUTTER_CONDUCTED_QRS_PARAMS["pr_interval"] # AV nodal delay
+                flutter_qrs_pr = FLUTTER_CONDUCTED_QRS_PARAMS["pr_interval"] 
                 qrs_time_after_flutter = potential_event_time + flutter_qrs_pr
                 heapq.heappush(event_queue, BeatEvent(qrs_time_after_flutter, "flutter_conducted_qrs", "aflutter_conducted"))
             
@@ -261,46 +299,50 @@ def generate_physiologically_accurate_ecg(
             next_fw_time = potential_event_time + flutter_wave_rr_interval_sec
             if next_fw_time < duration_sec:
                 heapq.heappush(event_queue, BeatEvent(next_fw_time, "flutter_wave", "aflutter_focus"))
-            continue # Flutter wave processed
+            continue # Flutter wave processed, move to next event in queue
 
-        # --- Standard AV Conduction & Ventricular Refractory Logic ---
-        if is_afib_active:
-            if is_atrial_origin_event: # Ignore SA node/PACs during AFib for P/QRS drawing
-                if current_event.source == "sa_node": # SA node still "ticks" for HR param if not overridden by AFib vent rate conceptually
-                    sa_node_next_fire_time = max(sa_node_next_fire_time, potential_event_time) + base_rr_interval_sec
-                    if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time) < 0.001 for e in event_queue):
-                         heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
-                continue
-        elif is_third_degree_block_active and is_atrial_origin_event:
-            qrs_is_blocked_by_av_node = True; draw_p_wave_only_for_this_atrial_event = True
-            if first_degree_av_block_pr_sec is not None: current_beat_morph_params["pr_interval"] = first_degree_av_block_pr_sec
-        elif not is_escape_event and not is_afib_qrs_event and not is_flutter_conducted_qrs_event: # Standard AV Blocks
-            if enable_mobitz_i_wenckebach and is_atrial_origin_event:
+        # --- AV Conduction Logic (for SA node / PACs if no dominant tachyarrhythmia is active) ---
+        # This block is skipped if SVT, AFib (QRS event), AFlutter (QRS event), or escape beat is processed.
+        if not is_svt_beat_event and not is_afib_qrs_event and not is_flutter_conducted_qrs_event and not is_escape_event:
+            if is_third_degree_block_active and is_atrial_origin_event:
+                qrs_is_blocked_by_av_node = True; draw_p_wave_only_for_this_atrial_event = True
+                # Apply 1st degree PR to P-wave if present, even if blocked
+                if is_first_degree_av_block_active and first_degree_av_block_pr_sec is not None:
+                    current_beat_morph_params["pr_interval"] = first_degree_av_block_pr_sec
+            elif is_mobitz_i_active and is_atrial_origin_event: # Wenckebach
                 if current_wenckebach_pr_sec is None: current_wenckebach_pr_sec = wenckebach_initial_pr_sec
                 current_beat_morph_params["pr_interval"] = current_wenckebach_pr_sec
                 if current_wenckebach_pr_sec >= wenckebach_max_pr_before_drop_sec:
                     qrs_is_blocked_by_av_node = True; draw_p_wave_only_for_this_atrial_event = True
-                    current_wenckebach_pr_sec = wenckebach_initial_pr_sec
+                    current_wenckebach_pr_sec = wenckebach_initial_pr_sec # Reset for next cycle
                 else: current_wenckebach_pr_sec += wenckebach_pr_increment_sec
-            elif enable_mobitz_ii_av_block and is_atrial_origin_event:
+            elif is_mobitz_ii_active and is_atrial_origin_event: # Mobitz II
                 p_wave_counter_for_mobitz_ii += 1
-                if p_wave_counter_for_mobitz_ii % mobitz_ii_p_waves_per_qrs != 1:
-                    qrs_is_blocked_by_av_node = True; draw_p_wave_only_for_this_atrial_event = True
-                if p_wave_counter_for_mobitz_ii >= mobitz_ii_p_waves_per_qrs: p_wave_counter_for_mobitz_ii = 0
-                if first_degree_av_block_pr_sec is not None and not enable_mobitz_i_wenckebach :
+                # Conduct only the first P of the ratio (e.g., if 3:1, conduct if counter is 1)
+                if p_wave_counter_for_mobitz_ii % mobitz_ii_p_waves_per_qrs != 1 and mobitz_ii_p_waves_per_qrs > 1 : # Blocked
+                     qrs_is_blocked_by_av_node = True; draw_p_wave_only_for_this_atrial_event = True
+                if p_wave_counter_for_mobitz_ii >= mobitz_ii_p_waves_per_qrs : p_wave_counter_for_mobitz_ii = 0 # Reset counter
+                
+                # If Mobitz II is active, 1st degree PR can still apply to conducted beats
+                if is_first_degree_av_block_active and first_degree_av_block_pr_sec is not None:
                      current_beat_morph_params["pr_interval"] = first_degree_av_block_pr_sec
-            elif first_degree_av_block_pr_sec is not None and is_atrial_origin_event:
+            elif is_first_degree_av_block_active and is_atrial_origin_event and first_degree_av_block_pr_sec is not None:
                 current_beat_morph_params["pr_interval"] = first_degree_av_block_pr_sec
         
-        # Final QRS blocking check based on ventricular refractoriness (unless it's a P-only event)
+        # Final QRS blocking check based on ventricular refractoriness
+        # This applies to any event trying to cause a QRS (sinus, pac, svt, afib_conducted, flutter_conducted)
+        # unless it's already marked as P-only or AV node blocked.
+        # Escape beats are generally not subject to this in the same way (they arise due to lack of other activation).
         if not draw_p_wave_only_for_this_atrial_event and \
            not qrs_is_blocked_by_av_node and \
+           not is_escape_event and \
            potential_event_time < ventricle_ready_for_next_qrs_at_time:
-            qrs_is_blocked_by_av_node = True # Block due to VRP
+            qrs_is_blocked_by_av_node = True # Block QRS due to VRP
             if is_atrial_origin_event: draw_p_wave_only_for_this_atrial_event = True # Still draw its P if atrial
 
+        # --- Process Blocked P-waves or Continue to Place Beat ---
         if qrs_is_blocked_by_av_node:
-            if draw_p_wave_only_for_this_atrial_event:
+            if draw_p_wave_only_for_this_atrial_event: # Only for atrial origin events that got blocked
                 _, y_p_wave_shape, p_wave_offset_for_drawing = generate_single_beat_morphology(current_beat_morph_params, fs, draw_only_p=True)
                 if len(y_p_wave_shape) > 0:
                     p_wave_start_time_global = potential_event_time - p_wave_offset_for_drawing
@@ -313,18 +355,17 @@ def generate_physiologically_accurate_ecg(
                     if p_samples_to_copy > 0:
                         p_shape_end_idx = p_shape_start_idx + p_samples_to_copy; p_place_end_idx = p_place_start_idx + p_samples_to_copy
                         full_ecg_signal_np[p_place_start_idx : p_place_end_idx] += y_p_wave_shape[p_shape_start_idx : p_shape_end_idx]
-            if current_event.source == "sa_node": # SA always tries next beat
+            
+            # Schedule next SA node beat if current event was SA node origin and it got blocked
+            if current_event.source == "sa_node" and not (is_svt_active or is_aflutter_active or is_afib_active) :
                 sa_node_next_fire_time = max(sa_node_next_fire_time, potential_event_time) + base_rr_interval_sec
                 if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time) < 0.001 for e in event_queue):
                      heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
-            continue
+            continue # End processing for this blocked event
 
-        # --- Place the Full Beat (PQRST or QRS-T for AFib/Escape/FlutterConducted) ---
-        is_p_only_final = (draw_p_wave_only_for_this_atrial_event and is_atrial_origin_event)
-        # For AFib conducted and Flutter conducted, ensure their morphology params (no P) are used.
-        # The `generate_single_beat_morphology` uses params' P settings.
-        # AFIB_CONDUCTED_QRS_PARAMS and FLUTTER_CONDUCTED_QRS_PARAMS already have P_amplitude = 0.
-
+        # --- Place the Full Beat (PQRST, QRS-T, or SVT beat) ---
+        is_p_only_final = (draw_p_wave_only_for_this_atrial_event and is_atrial_origin_event) # Should be false here
+        
         _, y_beat_shape, qrs_offset_from_shape_start = generate_single_beat_morphology(current_beat_morph_params, fs, draw_only_p=is_p_only_final)
         if len(y_beat_shape) > 0:
             waveform_start_time_global = potential_event_time - qrs_offset_from_shape_start
@@ -340,61 +381,98 @@ def generate_physiologically_accurate_ecg(
         
         actual_rr_to_this_beat = potential_event_time - last_placed_qrs_onset_time
         last_placed_qrs_onset_time = potential_event_time
-        ventricle_ready_for_next_qrs_at_time = potential_event_time + MIN_REFRACTORY_PERIOD_SEC # Default VRP after any QRS
+        qrs_duration_this_beat = current_beat_morph_params.get('qrs_duration', 0.10)
+        # Ventricular refractory period starts from QRS onset, not shape start
+        ventricle_ready_for_next_qrs_at_time = potential_event_time + max(MIN_REFRACTORY_PERIOD_SEC, qrs_duration_this_beat * 1.8)
+
 
         # --- Update State and Schedule Next Events ---
-        if is_afib_qrs_event:
+        if is_svt_beat_event: # NEW
+            svt_rr_interval_sec = 60.0 / svt_rate_bpm
+            next_svt_event_time = potential_event_time + svt_rr_interval_sec
+            if next_svt_event_time < duration_sec:
+                heapq.heappush(event_queue, BeatEvent(next_svt_event_time, "svt_beat", "svt_focus"))
+            # PVCs can occur during SVT
+            if enable_pvc and np.random.rand() < pvc_probability_per_sinus:
+                pvc_coupling_basis = actual_rr_to_this_beat if actual_rr_to_this_beat > 0.1 else svt_rr_interval_sec
+                pvc_time = potential_event_time + (pvc_coupling_basis * PVC_COUPLING_FACTOR)
+                if pvc_time > potential_event_time + qrs_duration_this_beat + 0.020 and pvc_time < next_svt_event_time - 0.100 : # Ensure PVC is after current QRS and before next SVT beat by a margin
+                     heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
+        elif is_afib_qrs_event:
             mean_afib_rr_sec = 60.0 / afib_average_ventricular_rate_bpm
             std_dev_rr = mean_afib_rr_sec * afib_irregularity_factor
             next_rr_variation = np.random.normal(0, std_dev_rr)
             tentative_next_rr = mean_afib_rr_sec + next_rr_variation
-            min_physiological_rr = MIN_REFRACTORY_PERIOD_SEC + 0.05 
+            min_physiological_rr = max(MIN_REFRACTORY_PERIOD_SEC, qrs_duration_this_beat) + 0.05 
             next_rr = max(min_physiological_rr, tentative_next_rr)
             next_afib_qrs_event_time = potential_event_time + next_rr
             heapq.heappush(event_queue, BeatEvent(next_afib_qrs_event_time, "afib_conducted", "afib_av_node"))
             if enable_pvc and np.random.rand() < pvc_probability_per_sinus:
                 pvc_coupling_basis = actual_rr_to_this_beat if actual_rr_to_this_beat > 0.1 else mean_afib_rr_sec
                 pvc_time = potential_event_time + (pvc_coupling_basis * PVC_COUPLING_FACTOR)
-                if pvc_time > potential_event_time + 0.100: heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
+                if pvc_time > potential_event_time + qrs_duration_this_beat + 0.020 and pvc_time < next_afib_qrs_event_time - 0.100 : 
+                    heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
         elif is_flutter_conducted_qrs_event:
-            # VRP set, next flutter wave is already in queue by its own logic. PVCs can occur.
             if enable_pvc and np.random.rand() < pvc_probability_per_sinus:
-                # Use the ventricular rate (derived from flutter rate and block) as basis for coupling
                 ventricular_rr_in_flutter = flutter_wave_rr_interval_sec * atrial_flutter_av_block_ratio_qrs_to_f
                 pvc_coupling_basis = actual_rr_to_this_beat if actual_rr_to_this_beat > 0.1 else ventricular_rr_in_flutter
                 pvc_time = potential_event_time + (pvc_coupling_basis * PVC_COUPLING_FACTOR)
-                if pvc_time > potential_event_time + 0.100: heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
-        elif current_event.source == "sa_node": # Conducted Sinus
-            sa_node_next_fire_time = potential_event_time + base_rr_interval_sec
-            if not is_third_degree_block_active and not is_afib_active and not is_aflutter_active:
-                 heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
-            elif is_third_degree_block_active: # Keep P-waves going
-                 heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
-            # Ectopic scheduling
-            coupling_rr_basis = actual_rr_to_this_beat if actual_rr_to_this_beat > 0.1 else base_rr_interval_sec
-            if enable_pac and np.random.rand() < pac_probability_per_sinus and not is_afib_active and not is_aflutter_active and not is_third_degree_block_active:
+                # next_flutter_qrs_approx_time = potential_event_time + ventricular_rr_in_flutter - current_beat_morph_params.get('pr_interval',0.14)
+                if pvc_time > potential_event_time + qrs_duration_this_beat + 0.020: # and pvc_time < next_flutter_qrs_approx_time - 0.100:
+                    heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
+        elif current_event.source == "sa_node": # Conducted Sinus or P-wave in 3rd Degree Block
+            sa_node_next_fire_time = max(sa_node_next_fire_time, potential_event_time) + base_rr_interval_sec
+            if not (is_svt_active or is_aflutter_active or is_afib_active): # Schedule next SA if not overridden
+                 if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time) < 0.001 for e in event_queue):
+                    heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+            
+            # Ectopic scheduling (only if SA node is the primary atrial driver and not 3rd deg block for PACs)
+            can_schedule_pac = enable_pac and not (is_svt_active or is_aflutter_active or is_afib_active or is_third_degree_block_active)
+            if can_schedule_pac and np.random.rand() < pac_probability_per_sinus :
+                coupling_rr_basis = actual_rr_to_this_beat if actual_rr_to_this_beat > 0.1 else base_rr_interval_sec
                 pac_time = potential_event_time + (coupling_rr_basis * PAC_COUPLING_FACTOR)
-                if pac_time > potential_event_time + 0.100: heapq.heappush(event_queue, BeatEvent(pac_time, "pac", "pac_focus"))
+                if pac_time > potential_event_time + 0.100 and pac_time < sa_node_next_fire_time - 0.100: 
+                    heapq.heappush(event_queue, BeatEvent(pac_time, "pac", "pac_focus"))
+            
             if enable_pvc and np.random.rand() < pvc_probability_per_sinus:
+                coupling_rr_basis = actual_rr_to_this_beat if actual_rr_to_this_beat > 0.1 else base_rr_interval_sec
                 pvc_time = potential_event_time + (coupling_rr_basis * PVC_COUPLING_FACTOR)
-                if pvc_time > potential_event_time + 0.100: heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
+                next_potential_sa_qrs = sa_node_next_fire_time + current_beat_morph_params.get('pr_interval', SINUS_PARAMS['pr_interval'])
+                if pvc_time > potential_event_time + qrs_duration_this_beat + 0.020 and pvc_time < next_potential_sa_qrs - 0.100:
+                     heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
         elif current_event.beat_type == "pac": # Conducted PAC
-            if not is_third_degree_block_active and not is_afib_active and not is_aflutter_active:
-                sa_node_next_fire_time = potential_event_time + base_rr_interval_sec
-                new_event_queue = [e for e in event_queue if not (e.source == "sa_node")]
+            # PAC resets SA node if SA node is the current pacemaker
+            if not (is_svt_active or is_aflutter_active or is_afib_active or is_third_degree_block_active):
+                sa_node_next_fire_time = potential_event_time + base_rr_interval_sec 
+                new_event_queue = [e for e in event_queue if not (e.source == "sa_node")] # Remove old SA events
                 heapq.heapify(new_event_queue); event_queue = new_event_queue
-                heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+                heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node")) # Add new SA event after reset
+            
+            if enable_pvc and np.random.rand() < pvc_probability_per_sinus: 
+                coupling_rr_basis = actual_rr_to_this_beat if actual_rr_to_this_beat > 0.1 else base_rr_interval_sec # Use underlying sinus RR as basis
+                pvc_time = potential_event_time + (coupling_rr_basis * PVC_COUPLING_FACTOR)
+                next_potential_sa_qrs_after_pac_reset = sa_node_next_fire_time + PAC_PARAMS.get('pr_interval', SINUS_PARAMS['pr_interval'])
+                if pvc_time > potential_event_time + qrs_duration_this_beat + 0.020 and pvc_time < next_potential_sa_qrs_after_pac_reset - 0.100:
+                    heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
         elif current_event.beat_type == "pvc": # PVC
-            sinus_qrs_before_pvc_cycle = last_placed_qrs_onset_time - actual_rr_to_this_beat
-            end_of_compensatory_pause_for_qrs = sinus_qrs_before_pvc_cycle + (2 * base_rr_interval_sec)
-            # Override the default VRP for PVC to enforce compensatory pause
-            ventricle_ready_for_next_qrs_at_time = end_of_compensatory_pause_for_qrs - 0.01 
-        elif is_escape_event: # Junctional or Ventricular Escape beat
-            if escape_rr_interval_sec:
-                next_escape_fire_time = potential_event_time + escape_rr_interval_sec
-                heapq.heappush(event_queue, BeatEvent(next_escape_fire_time, escape_beat_type, current_event.source))
+            sinus_qrs_before_pvc_cycle_approx = last_placed_qrs_onset_time - actual_rr_to_this_beat
+            # For fully compensatory pause, next QRS (if sinus) should land 2*base_rr after the beat *before* the PVC
+            # Ventricle is refractory until this compensatory pause is nearly over
+            # The timing of the next SA node beat is NOT reset by PVC usually.
+            # However, the ventricle won't respond until it's ready.
+            end_of_compensatory_pause_for_qrs = sinus_qrs_before_pvc_cycle_approx + (2 * base_rr_interval_sec)
+            # PVC itself makes ventricle refractory. MIN_REFRACTORY_PERIOD_SEC is already set from QRS onset.
+            # If a P-wave falls during PVC's refractory period, it might be hidden or non-conducted.
+            # For simplicity, the main effect is the pause.
+            ventricle_ready_for_next_qrs_at_time = max(ventricle_ready_for_next_qrs_at_time, end_of_compensatory_pause_for_qrs - 0.02)
 
-    if is_afib_active:
+        elif is_escape_event: 
+            escape_rr_interval_sec = 60.0 / (third_degree_escape_rate_bpm or (45.0 if third_degree_escape_rhythm_origin == "junctional" else 30.0))
+            if escape_rr_interval_sec > 0:
+                next_escape_fire_time = potential_event_time + escape_rr_interval_sec
+                heapq.heappush(event_queue, BeatEvent(next_escape_fire_time, current_event.beat_type, current_event.source))
+
+    if is_afib_active: # Add f-waves post-process for AFib
         f_waves = generate_fibrillatory_waves(duration_sec, afib_fibrillation_wave_amplitude_mv, fs)
         full_ecg_signal_np += f_waves
 
@@ -415,55 +493,77 @@ class AdvancedECGParams(BaseModel):
     wenckebach_pr_increment_sec: float = Field(0.04, ge=0.01, le=0.15)
     wenckebach_max_pr_before_drop_sec: float = Field(0.32, ge=0.22, le=0.70)
     enable_third_degree_av_block: bool = Field(False)
-    third_degree_escape_rhythm_origin: str = Field("junctional")
+    third_degree_escape_rhythm_origin: str = Field("junctional") # "junctional" or "ventricular"
     third_degree_escape_rate_bpm: Optional[float] = Field(None, gt=15, lt=65)
     enable_atrial_fibrillation: bool = Field(False)
-    afib_average_ventricular_rate_bpm: int = Field(100, ge=30, le=220)
-    afib_fibrillation_wave_amplitude_mv: float = Field(0.05, ge=0.0, le=0.2)
-    afib_irregularity_factor: float = Field(0.20, ge=0.05, le=0.50)
-    enable_atrial_flutter: bool = Field(False) # New
-    atrial_flutter_rate_bpm: int = Field(300, ge=200, le=400) # New
-    atrial_flutter_av_block_ratio_qrs_to_f: int = Field(2, ge=1) # New
-    atrial_flutter_wave_amplitude_mv: float = Field(0.15, ge=0.05, le=0.5) # New
+    afib_average_ventricular_rate_bpm: int = Field(100, ge=30, le=220) # Renamed for clarity
+    afib_fibrillation_wave_amplitude_mv: float = Field(0.05, ge=0.0, le=0.2) # Renamed for clarity
+    afib_irregularity_factor: float = Field(0.20, ge=0.05, le=0.50) # Renamed for clarity
+    enable_atrial_flutter: bool = Field(False)
+    atrial_flutter_rate_bpm: int = Field(300, ge=200, le=400)
+    atrial_flutter_av_block_ratio_qrs_to_f: int = Field(2, ge=1) # e.g. 2 means 2:1 block
+    atrial_flutter_wave_amplitude_mv: float = Field(0.15, ge=0.05, le=0.5)
+
+    # NEW SVT PARAMS
+    enable_svt: bool = Field(False)
+    svt_rate_bpm: int = Field(180, ge=150, le=250)
+
 
 @app.post("/api/generate_advanced_ecg")
 async def get_advanced_ecg_data(params: AdvancedECGParams):
     description_parts = []
-    if params.enable_atrial_flutter:
-        description_parts.append(f"Atrial Flutter ({params.atrial_flutter_rate_bpm}bpm) with {params.atrial_flutter_av_block_ratio_qrs_to_f}:1 AV Conduction")
+    # Dominant rhythm description
+    if params.enable_svt:
+        description_parts.append(f"SVT (AVNRT-like) at {params.svt_rate_bpm}bpm")
+    elif params.enable_atrial_flutter:
+        description_parts.append(f"Atrial Flutter ({params.atrial_flutter_rate_bpm}bpm atrial) with {params.atrial_flutter_av_block_ratio_qrs_to_f}:1 AV Conduction")
     elif params.enable_atrial_fibrillation:
-        description_parts.append(f"Atrial Fibrillation (Avg Vent Rate: {params.afib_average_ventricular_rate_bpm}bpm)")
+        description_parts.append(f"Atrial Fibrillation (Avg Ventricular Rate: {params.afib_average_ventricular_rate_bpm}bpm)")
     elif params.enable_third_degree_av_block:
         escape_desc = f"{params.third_degree_escape_rhythm_origin.capitalize()} Escape ({params.third_degree_escape_rate_bpm or (45 if params.third_degree_escape_rhythm_origin == 'junctional' else 30):.0f}bpm)"
-        description_parts.append(f"3rd Degree AV Block (SA @ {params.heart_rate_bpm}bpm, {escape_desc})")
-    else: # Sinus or Sinus with other AV blocks
-        description_parts.append(f"Sinus {params.heart_rate_bpm}bpm")
+        description_parts.append(f"3rd Degree AV Block (Atrial Rate {params.heart_rate_bpm}bpm, Ventricular: {escape_desc})")
+    else: # Sinus rhythm or Sinus with other AV blocks
+        description_parts.append(f"Sinus Rhythm at {params.heart_rate_bpm}bpm")
         av_block_sub_desc = []
         if params.enable_mobitz_i_wenckebach:
-             av_block_sub_desc.append(f"Wenckebach")
-        elif params.enable_mobitz_ii_av_block: # This will only be hit if Wenckebach is false
-            av_block_sub_desc.append(f"Mobitz II {params.mobitz_ii_p_waves_per_qrs}:1")
-        elif params.first_degree_av_block_pr_sec is not None: # Only if other 2nd degree blocks are false
-            av_block_sub_desc.append(f"1st Deg AVB (PR {params.first_degree_av_block_pr_sec*1000:.0f}ms)")
+             av_block_sub_desc.append(f"2nd Degree AV Block Type I (Wenckebach)")
+        elif params.enable_mobitz_ii_av_block:
+            av_block_sub_desc.append(f"2nd Degree AV Block Type II (Mobitz II {params.mobitz_ii_p_waves_per_qrs}:1)")
+        elif params.first_degree_av_block_pr_sec is not None: 
+            av_block_sub_desc.append(f"1st Degree AV Block (PR {params.first_degree_av_block_pr_sec*1000:.0f}ms)")
+        
         if av_block_sub_desc:
-            description_parts.append("with " + " & ".join(av_block_sub_desc))
+            description_parts[-1] += " with " + " & ".join(av_block_sub_desc) # Append to Sinus Rhythm string
             
+    # Ectopic beats description
     ectopic_desc = []
-    # Allow PVCs in AFib/AFlutter, but PACs are generally not relevant
+    # PACs: not with SVT, AFib, AFlutter, or 3rd degree block (where atrial origin is distinct or chaotic)
     if params.enable_pac and params.pac_probability_per_sinus > 0 and \
-       not params.enable_atrial_fibrillation and not params.enable_atrial_flutter and not params.enable_third_degree_av_block : # PACs in Sinus/1st/2nd deg blocks
-        ectopic_desc.append(f"PACs ({params.pac_probability_per_sinus*100:.0f}%)")
+       not params.enable_svt and \
+       not params.enable_atrial_fibrillation and not params.enable_atrial_flutter and \
+       not params.enable_third_degree_av_block :
+        ectopic_desc.append(f"Premature Atrial Contractions ({params.pac_probability_per_sinus*100:.0f}%)")
+    
+    # PVCs can occur with most rhythms
     if params.enable_pvc and params.pvc_probability_per_sinus > 0:
-        ectopic_desc.append(f"PVCs ({params.pvc_probability_per_sinus*100:.0f}%)")
+        ectopic_desc.append(f"Premature Ventricular Contractions ({params.pvc_probability_per_sinus*100:.0f}%)")
     
     if ectopic_desc:
-        is_complex_base = any([params.enable_atrial_flutter, params.enable_atrial_fibrillation, params.enable_third_degree_av_block,
-                               params.enable_mobitz_i_wenckebach, params.enable_mobitz_ii_av_block, params.first_degree_av_block_pr_sec is not None])
-        conjunction = ", plus " if is_complex_base or "with" in description_parts[-1] else " with "
+        # Check if there was already a "with" or if it's a simple base rhythm
+        has_existing_modifiers = "with" in description_parts[-1] or \
+                                 any([params.enable_svt, params.enable_atrial_flutter, params.enable_atrial_fibrillation, params.enable_third_degree_av_block,
+                                      params.enable_mobitz_i_wenckebach, params.enable_mobitz_ii_av_block, params.first_degree_av_block_pr_sec is not None])
+        
+        if description_parts[-1].startswith("Sinus Rhythm at") and not has_existing_modifiers :
+             conjunction = " with " # Sinus Rhythm at 60bpm with PVCs
+        elif not description_parts[-1].endswith(")"): # e.g. "SVT (AVNRT-like) at 180bpm"
+            conjunction = ", plus " # SVT at 180bpm, plus PVCs
+        else: # e.g. "...(Wenckebach)" or "...(PR 240ms)"
+            conjunction = " and " # Sinus Rhythm at 60bpm with Wenckebach and PVCs
+
         description_parts.append(conjunction + " & ".join(ectopic_desc))
     
-    description = "".join(description_parts).replace("  ", " ").strip()
-    description = description.replace("with , plus", "with").replace(" and , plus", ", plus")
+    final_description = "".join(description_parts).replace("  ", " ").strip()
 
 
     time_axis, ecg_signal = generate_physiologically_accurate_ecg(
@@ -487,9 +587,12 @@ async def get_advanced_ecg_data(params: AdvancedECGParams):
         atrial_flutter_rate_bpm=params.atrial_flutter_rate_bpm,
         atrial_flutter_av_block_ratio_qrs_to_f=params.atrial_flutter_av_block_ratio_qrs_to_f,
         atrial_flutter_wave_amplitude_mv=params.atrial_flutter_wave_amplitude_mv,
+        # NEW SVT PARAMS
+        enable_svt=params.enable_svt,
+        svt_rate_bpm=params.svt_rate_bpm,
         fs=FS
     )
-    return {"time_axis": time_axis, "ecg_signal": ecg_signal, "rhythm_generated": description}
+    return {"time_axis": time_axis, "ecg_signal": ecg_signal, "rhythm_generated": final_description}
 
 # You might want to keep your old endpoint for a while or remove it.
 # Example: To keep the old simple one for testing comparison:
