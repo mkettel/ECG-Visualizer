@@ -58,6 +58,9 @@ interface AdvancedRequestBody {
   enable_atrial_fibrillation?: boolean;
   afib_rate_bpm?: number;
   afib_irregularity?: number;
+  enable_atrial_flutter?: boolean;
+  aflutter_rate_bpm?: number;
+  aflutter_conduction_ratio?: number;
 }
 
 // Helper function to capitalize strings
@@ -102,6 +105,11 @@ const ECGChart: React.FC = () => {
   const [afibRate, setAfibRate] = useState<number>(300);
   const [afibIrregularity, setAfibIrregularity] = useState<number>(0.7);
 
+  // New state for Atrial Flutter
+  const [enableAtrialFlutter, setEnableAtrialFlutter] = useState<boolean>(false);
+  const [aflutterRate, setAflutterRate] = useState<number>(300);
+  const [aflutterConductionRatio, setAflutterConductionRatio] = useState<number>(2);
+
   const [chartTitle, setChartTitle] = useState<string>('Simulated ECG');
   const chartRef = useRef<ChartJS<'line', number[], string> | null>(null);
 
@@ -134,6 +142,12 @@ const ECGChart: React.FC = () => {
     if (enableAtrialFibrillation && (afibIrregularity < 0.1 || afibIrregularity > 0.9)) {
         setError("Atrial Fibrillation irregularity must be between 0.1 and 0.9."); setIsLoading(false); return;
     }
+    if (enableAtrialFlutter && (aflutterRate < 200 || aflutterRate > 350)) {
+        setError("Atrial Flutter rate must be between 200 and 350 bpm."); setIsLoading(false); return;
+    }
+    if (enableAtrialFlutter && (aflutterConductionRatio < 1 || aflutterConductionRatio > 6)) {
+        setError("Atrial Flutter conduction ratio must be between 1 and 6."); setIsLoading(false); return;
+    }
 
     const requestBody: AdvancedRequestBody = {
       heart_rate_bpm: heartRate, duration_sec: duration,
@@ -152,6 +166,9 @@ const ECGChart: React.FC = () => {
       enable_atrial_fibrillation: enableAtrialFibrillation,
       afib_rate_bpm: enableAtrialFibrillation ? afibRate : 300,
       afib_irregularity: enableAtrialFibrillation ? afibIrregularity : 0.7,
+      enable_atrial_flutter: enableAtrialFlutter,
+      aflutter_rate_bpm: enableAtrialFlutter ? aflutterRate : 300,
+      aflutter_conduction_ratio: enableAtrialFlutter ? aflutterConductionRatio : 2,
     };
 
     try {
@@ -317,6 +334,7 @@ const ECGChart: React.FC = () => {
     // When enabling AFib, disable conflicting rhythms for clarity
     if (e.target.checked) {
       setEnablePac(false); // PACs wouldn't make sense in AFib
+      setEnableAtrialFlutter(false); // Can't have both flutter and fibrillation
     }
   };
 
@@ -333,6 +351,31 @@ const ECGChart: React.FC = () => {
   const handleAfibIrregularityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     setAfibIrregularity(isNaN(val) ? 0.7 : Math.max(0.1, Math.min(0.9, val)));
+  };
+
+  // Event handlers for Atrial Flutter
+  const handleEnableAtrialFlutterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEnableAtrialFlutter(e.target.checked);
+    // When enabling AFlutter, disable conflicting rhythms for clarity
+    if (e.target.checked) {
+      setEnablePac(false); // PACs don't make sense in flutter
+      setEnableAtrialFibrillation(false); // Can't have both flutter and fibrillation
+    }
+  };
+
+  const handleAflutterRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setAflutterRate(isNaN(val) ? 300 : val);
+  };
+
+  const handleAflutterRateBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setAflutterRate(isNaN(val) ? 300 : Math.max(200, Math.min(350, val)));
+  };
+
+  const handleAflutterConductionRatioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    setAflutterConductionRatio(isNaN(val) ? 2 : Math.max(1, Math.min(6, val)));
   };
 
   return (
@@ -507,8 +550,8 @@ const ECGChart: React.FC = () => {
                     <div className="flex justify-between items-center mb-3">
                       <h3 className="text-sm font-medium text-neutral-300">Atrial Fibrillation</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
-                        <input type="checkbox" id="enableAtrialFibrillationCheckbox" checked={enableAtrialFibrillation} onChange={handleEnableAtrialFibrillationChange} className="sr-only peer"/>
-                        <label htmlFor="enableAtrialFibrillationCheckbox" className="block h-5 w-10 cursor-pointer rounded-full bg-neutral-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"></label>
+                        <input type="checkbox" id="enableAtrialFibrillationCheckbox" checked={enableAtrialFibrillation} onChange={handleEnableAtrialFibrillationChange} disabled={enableAtrialFlutter} className="sr-only peer"/>
+                        <label htmlFor="enableAtrialFibrillationCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${enableAtrialFlutter ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
                       </div>
                     </div>
                     {enableAtrialFibrillation && (
@@ -548,6 +591,61 @@ const ECGChart: React.FC = () => {
                           <p className="text-xs text-gray-500 mt-1">Higher values create more irregular R-R intervals</p>
                         </div>
                       </div>
+                    )}
+                    {enableAtrialFlutter && (
+                      <p className="text-xs text-gray-500 mt-2">Not available with Atrial Flutter</p>
+                    )}
+                  </div>
+                  
+                  {/* Atrial Flutter Controls */}
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-medium text-neutral-300">Atrial Flutter</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableAtrialFlutterCheckbox" checked={enableAtrialFlutter} onChange={handleEnableAtrialFlutterChange} disabled={enableAtrialFibrillation} className="sr-only peer"/>
+                        <label htmlFor="enableAtrialFlutterCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${enableAtrialFibrillation ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
+                      </div>
+                    </div>
+                    {enableAtrialFlutter && (
+                      <div className="space-y-3 mt-3">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="aflutterRateInput" className="text-xs font-medium text-neutral-400">Flutter Rate (bpm):</label>
+                            <div className="text-right text-neutral-300 text-xs">{aflutterRate}</div>
+                          </div>
+                          <input
+                            id="aflutterRateInput"
+                            type="range"
+                            value={aflutterRate}
+                            onChange={handleAflutterRateChange}
+                            min="200"
+                            max="350"
+                            step="10"
+                            className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Typical rate: 300 bpm (240-350)</p>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="aflutterConductionRatioInput" className="text-xs font-medium text-neutral-400">Conduction Ratio:</label>
+                            <div className="text-right text-neutral-300 text-xs">{aflutterConductionRatio}:1</div>
+                          </div>
+                          <input
+                            id="aflutterConductionRatioInput"
+                            type="range"
+                            value={aflutterConductionRatio}
+                            onChange={handleAflutterConductionRatioChange}
+                            min="1"
+                            max="6"
+                            step="1"
+                            className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">In {aflutterConductionRatio}:1 conduction, 1 out of every {aflutterConductionRatio} flutter waves conducts</p>
+                        </div>
+                      </div>
+                    )}
+                    {enableAtrialFibrillation && (
+                      <p className="text-xs text-gray-500 mt-2">Not available with Atrial Fibrillation</p>
                     )}
                   </div>
                   
