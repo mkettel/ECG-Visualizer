@@ -277,7 +277,7 @@ const ECGChart: React.FC = () => {
   };
 
   return (
-    <div className="bg-gray-50 overflow-auto text-neutral-900 m-2 rounded-md flex flex-col">
+    <div className="bg-gray-50 overflow-auto text-neutral-900 rounded-md flex flex-col">
       {/* Main container */}
       <div className="px-4 py-4 mx-auto w-full max-w-8xl">
         {/* Title & controls layout */}
