@@ -52,6 +52,9 @@ interface AdvancedRequestBody {
   wenckebach_initial_pr_sec?: number;    // New
   wenckebach_pr_increment_sec?: number; // New
   wenckebach_max_pr_before_drop_sec?: number; // New
+  enable_third_degree_av_block?: boolean; // New
+  third_degree_escape_rhythm_origin?: string; // New
+  third_degree_escape_rate_bpm?: number | null; // New
 }
 
 // Helper function to capitalize strings
@@ -86,6 +89,11 @@ const ECGChart: React.FC = () => {
   const [wenckebachPrIncrementSec, setWenckebachPrIncrementSec] = useState<number>(0.04);
   const [wenckebachMaxPrBeforeDropSec, setWenckebachMaxPrBeforeDropSec] = useState<number>(0.32);
 
+  // New state for 3rd Degree AV Block
+  const [enableThirdDegreeAVBlock, setEnableThirdDegreeAVBlock] = useState<boolean>(false);
+  const [thirdDegreeEscapeOrigin, setThirdDegreeEscapeOrigin] = useState<string>("junctional");
+  const [thirdDegreeEscapeRate, setThirdDegreeEscapeRate] = useState<number>(45);
+
 
   const [chartTitle, setChartTitle] = useState<string>('Simulated ECG');
   const chartRef = useRef<ChartJS<'line', number[], string> | null>(null);
@@ -94,49 +102,40 @@ const ECGChart: React.FC = () => {
     setIsLoading(true);
     setError(null);
 
-    // --- Validations ---
+    // --- Validations (add for 3rd degree block) ---
     if ((enablePac && (pacProbability < 0 || pacProbability > 1)) ||
         (enablePvc && (pvcProbability < 0 || pvcProbability > 1))) {
-      setError("Ectopic probabilities must be between 0.0 and 1.0.");
-      setIsLoading(false); return;
+      setError("Ectopic probabilities must be between 0.0 and 1.0."); setIsLoading(false); return;
     }
     if (enableFirstDegreeAVBlock && (firstDegreePrSec < 0.201 || firstDegreePrSec > 0.60)) {
-      setError("1st Degree AV Block PR interval must be between 0.201s and 0.60s.");
-      setIsLoading(false); return;
+      setError("1st Degree AV Block PR interval must be between 0.201s and 0.60s."); setIsLoading(false); return;
     }
     if (enableMobitzIIAVBlock && (mobitzIIPWavesPerQRS < 2)) {
-      setError("Mobitz II P-waves per QRS must be 2 or greater.");
-      setIsLoading(false); return;
+      setError("Mobitz II P-waves per QRS must be 2 or greater."); setIsLoading(false); return;
     }
     if (enableMobitzIWenckebach) {
-        if (wenckebachInitialPrSec < 0.12 || wenckebachInitialPrSec > 0.40) {
-            setError("Wenckebach Initial PR must be between 0.12s and 0.40s.");
-            setIsLoading(false); return;
-        }
-        if (wenckebachPrIncrementSec < 0.01 || wenckebachPrIncrementSec > 0.15) {
-            setError("Wenckebach PR Increment must be between 0.01s and 0.15s.");
-            setIsLoading(false); return;
-        }
-        if (wenckebachMaxPrBeforeDropSec < 0.22 || wenckebachMaxPrBeforeDropSec > 0.70 || wenckebachMaxPrBeforeDropSec <= wenckebachInitialPrSec) {
-            setError("Wenckebach Max PR must be between 0.22s and 0.70s, and greater than Initial PR.");
-            setIsLoading(false); return;
-        }
+        if (wenckebachInitialPrSec < 0.12 || wenckebachInitialPrSec > 0.40) { setError("Wenckebach Initial PR must be 0.12-0.40s."); setIsLoading(false); return; }
+        if (wenckebachPrIncrementSec < 0.01 || wenckebachPrIncrementSec > 0.15) { setError("Wenckebach PR Increment must be 0.01-0.15s."); setIsLoading(false); return; }
+        if (wenckebachMaxPrBeforeDropSec < 0.22 || wenckebachMaxPrBeforeDropSec > 0.70 || wenckebachMaxPrBeforeDropSec <= wenckebachInitialPrSec) { setError("Wenckebach Max PR must be 0.22-0.70s & > Initial PR."); setIsLoading(false); return; }
+    }
+    if (enableThirdDegreeAVBlock && (thirdDegreeEscapeRate < 15 || thirdDegreeEscapeRate > 65)) {
+        setError("3rd Degree AV Block Escape Rate must be between 15 and 65 bpm."); setIsLoading(false); return;
     }
 
     const requestBody: AdvancedRequestBody = {
-      heart_rate_bpm: heartRate,
-      duration_sec: duration,
-      enable_pac: enablePac,
-      pac_probability_per_sinus: enablePac ? pacProbability : 0,
-      enable_pvc: enablePvc,
-      pvc_probability_per_sinus: enablePvc ? pvcProbability : 0,
+      heart_rate_bpm: heartRate, duration_sec: duration,
+      enable_pac: enablePac, pac_probability_per_sinus: enablePac ? pacProbability : 0,
+      enable_pvc: enablePvc, pvc_probability_per_sinus: enablePvc ? pvcProbability : 0,
       first_degree_av_block_pr_sec: enableFirstDegreeAVBlock ? firstDegreePrSec : null,
       enable_mobitz_ii_av_block: enableMobitzIIAVBlock,
       mobitz_ii_p_waves_per_qrs: enableMobitzIIAVBlock ? mobitzIIPWavesPerQRS : 2,
-      enable_mobitz_i_wenckebach: enableMobitzIWenckebach, // New
-      wenckebach_initial_pr_sec: enableMobitzIWenckebach ? wenckebachInitialPrSec : 0.16, // New
-      wenckebach_pr_increment_sec: enableMobitzIWenckebach ? wenckebachPrIncrementSec : 0.04, // New
-      wenckebach_max_pr_before_drop_sec: enableMobitzIWenckebach ? wenckebachMaxPrBeforeDropSec : 0.32, // New
+      enable_mobitz_i_wenckebach: enableMobitzIWenckebach,
+      wenckebach_initial_pr_sec: enableMobitzIWenckebach ? wenckebachInitialPrSec : 0.16,
+      wenckebach_pr_increment_sec: enableMobitzIWenckebach ? wenckebachPrIncrementSec : 0.04,
+      wenckebach_max_pr_before_drop_sec: enableMobitzIWenckebach ? wenckebachMaxPrBeforeDropSec : 0.32,
+      enable_third_degree_av_block: enableThirdDegreeAVBlock, // New
+      third_degree_escape_rhythm_origin: enableThirdDegreeAVBlock ? thirdDegreeEscapeOrigin : "junctional", // New
+      third_degree_escape_rate_bpm: enableThirdDegreeAVBlock ? thirdDegreeEscapeRate : null, // New
     };
 
     try {
@@ -275,6 +274,26 @@ const ECGChart: React.FC = () => {
   const handleWenckebachMaxPrBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value); setWenckebachMaxPrBeforeDropSec(isNaN(val) ? 0.22 : Math.max(0.22, Math.min(0.70, val)));
   };
+  // New Event Handlers for 3rd Degree AV Block
+  const handleEnableThirdDegreeAVBChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEnableThirdDegreeAVBlock(e.target.checked);
+    // When enabling 3rd degree, it might be good to disable other AV block types for clarity
+    if (e.target.checked) {
+        setEnableFirstDegreeAVBlock(false);
+        setEnableMobitzIIAVBlock(false);
+        setEnableMobitzIWenckebach(false);
+    }
+  };
+  const handleThirdDegreeEscapeOriginChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setThirdDegreeEscapeOrigin(e.target.value);
+    // Optionally adjust default escape rate when origin changes
+    if (e.target.value === "junctional") setThirdDegreeEscapeRate(45);
+    else if (e.target.value === "ventricular") setThirdDegreeEscapeRate(30);
+  };
+  const handleThirdDegreeEscapeRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setThirdDegreeEscapeRate(isNaN(val) ? 20 : Math.max(15, Math.min(65, val))); // Clamp rate
+  };
 
   return (
     <div className="bg-gray-50 overflow-auto text-neutral-900 rounded-md flex flex-col">
@@ -303,7 +322,7 @@ const ECGChart: React.FC = () => {
                       <div className="text-right text-gray-100 text-lg font-medium">{heartRate}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <input type="range" value={heartRate} onChange={handleHeartRateChange} min="30" max="250" className="h-1 flex-grow cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
+                      <input type="range" value={heartRate  } onChange={handleHeartRateChange} min="30" max="250" className="h-1 flex-grow cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
                       <div className="text-gray-100 text-xs w-12 text-right">bpm</div>
                     </div>
                   </div>
@@ -376,7 +395,6 @@ const ECGChart: React.FC = () => {
 
                   {/* Mobitz Type II AV Block */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    {/* ... (Mobitz II UI - no change) ... */}
                     <div className="flex justify-between gap-1 items-center">
                       <h3 className="text-sm font-medium text-neutral-300">2nd Degree AV Block Type II (Mobitz II)</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -389,6 +407,51 @@ const ECGChart: React.FC = () => {
                         <label htmlFor="mobitzIIRatioInput" className="text-xs font-medium text-neutral-400 block mb-1">P-waves per QRS (e.g., 3 for 3:1 Block):</label>
                         <input id="mobitzIIRatioInput" type="number" value={mobitzIIPWavesPerQRS} onChange={handleMobitzIIRatioChange} min="2" step="1" disabled={!enableMobitzIIAVBlock} className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-neutral-300 text-sm focus:ring-red-500 focus:border-red-500"/>
                         <p className="text-xs text-gray-500 mt-1">This sets a X:1 block, where X is the number entered. For {mobitzIIPWavesPerQRS}:1 block, 1 out of {mobitzIIPWavesPerQRS} P-waves conducts.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3rd Degree AV Block Controls */}
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-medium text-neutral-300">3rd Degree (Complete) AV Block</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableThirdDegreeAVBCheckbox" checked={enableThirdDegreeAVBlock} onChange={handleEnableThirdDegreeAVBChange} className="sr-only peer"/>
+                        <label htmlFor="enableThirdDegreeAVBCheckbox" className="block h-5 w-10 cursor-pointer rounded-full bg-neutral-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"></label>
+                      </div>
+                    </div>
+                    {enableThirdDegreeAVBlock && (
+                      <div className="space-y-3 mt-3">
+                        <div>
+                          <label htmlFor="thirdDegreeEscapeOriginSelect" className="text-xs font-medium text-neutral-400 block mb-1">Escape Rhythm Origin:</label>
+                          <select
+                            id="thirdDegreeEscapeOriginSelect"
+                            value={thirdDegreeEscapeOrigin}
+                            onChange={handleThirdDegreeEscapeOriginChange}
+                            disabled={!enableThirdDegreeAVBlock}
+                            className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-neutral-300 text-sm focus:ring-red-500 focus:border-red-500"
+                          >
+                            <option value="junctional">Junctional</option>
+                            <option value="ventricular">Ventricular</option>
+                          </select>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="thirdDegreeEscapeRateInput" className="text-xs font-medium text-neutral-400">Escape Rate (bpm):</label>
+                            <div className="text-right text-neutral-300 text-xs">{thirdDegreeEscapeRate} bpm</div>
+                          </div>
+                          <input
+                            id="thirdDegreeEscapeRateInput"
+                            type="range"
+                            value={thirdDegreeEscapeRate}
+                            onChange={handleThirdDegreeEscapeRateChange}
+                            min="15"
+                            max="65"
+                            step="1"
+                            disabled={!enableThirdDegreeAVBlock}
+                            className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
