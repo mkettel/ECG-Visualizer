@@ -281,17 +281,17 @@ const ECGChart: React.FC = () => {
       {/* Main container */}
       <div className="px-4 py-4 mx-auto w-full max-w-8xl">
         {/* Title & controls layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
           {/* Title area */}
           <div className="lg:col-span-4 mb-2">
-            {/* ... (Title - no change) ... */}
+            {/* ... (Title) */}
             <h1 className="text-2xl font-bold text-neutral-800 flex items-center">Advanced ECG Simulator</h1>
             <p className='text-neutral-800 text-sm'>Utilize the different settings to create various heart rhythms. </p>
           </div>
           
           {/* Left side - Controls */}
-          <div className="lg:col-span-1 overflow-scroll">
-            <div className="bg-neutral-900 rounded-xl p-6 h-full">
+          <div className="lg:col-span-1">
+            <div className="bg-neutral-900 rounded-xl p-6 h-full overflow-y-auto max-h-[calc(100vh-150px)]">
               {/* Basic Controls Section */}
               <div className="mb-6 pb-5 border-b border-gray-700">
                 {/* ... (Basic Settings - no change) ... */}
@@ -450,8 +450,8 @@ const ECGChart: React.FC = () => {
           
           {/* Right side - ECG Visualization */}
           <div className="lg:col-span-3">
-            {/* ... (Chart Display - no change) ... */}
-            <div className="bg-neutral-900 rounded-xl overflow-hidden h-full flex flex-col border border-gray-800">
+            {/* Chart Display */}
+            <div className="bg-neutral-900 rounded-xl overflow-hidden h-[calc(100vh-150px)] flex flex-col border border-gray-800">
               <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
                 <div className="font-medium text-gray-200">{chartTitle || 'ECG Signal'}</div>
                 <div className="text-sm text-gray-500">{heartRate} bpm, {duration}s</div>
