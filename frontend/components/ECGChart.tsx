@@ -48,13 +48,16 @@ interface AdvancedRequestBody {
   first_degree_av_block_pr_sec?: number | null;
   enable_mobitz_ii_av_block?: boolean;
   mobitz_ii_p_waves_per_qrs?: number;
-  enable_mobitz_i_wenckebach?: boolean; // New
-  wenckebach_initial_pr_sec?: number;    // New
-  wenckebach_pr_increment_sec?: number; // New
-  wenckebach_max_pr_before_drop_sec?: number; // New
-  enable_third_degree_av_block?: boolean; // New
-  third_degree_escape_rhythm_origin?: string; // New
-  third_degree_escape_rate_bpm?: number | null; // New
+  enable_mobitz_i_wenckebach?: boolean;
+  wenckebach_initial_pr_sec?: number;
+  wenckebach_pr_increment_sec?: number;
+  wenckebach_max_pr_before_drop_sec?: number;
+  enable_third_degree_av_block?: boolean;
+  third_degree_escape_rhythm_origin?: string;
+  third_degree_escape_rate_bpm?: number | null;
+  enable_atrial_fibrillation?: boolean;
+  afib_rate_bpm?: number;
+  afib_irregularity?: number;
 }
 
 // Helper function to capitalize strings
@@ -94,6 +97,10 @@ const ECGChart: React.FC = () => {
   const [thirdDegreeEscapeOrigin, setThirdDegreeEscapeOrigin] = useState<string>("junctional");
   const [thirdDegreeEscapeRate, setThirdDegreeEscapeRate] = useState<number>(45);
 
+  // New state for Atrial Fibrillation
+  const [enableAtrialFibrillation, setEnableAtrialFibrillation] = useState<boolean>(false);
+  const [afibRate, setAfibRate] = useState<number>(300);
+  const [afibIrregularity, setAfibIrregularity] = useState<number>(0.7);
 
   const [chartTitle, setChartTitle] = useState<string>('Simulated ECG');
   const chartRef = useRef<ChartJS<'line', number[], string> | null>(null);
@@ -121,6 +128,12 @@ const ECGChart: React.FC = () => {
     if (enableThirdDegreeAVBlock && (thirdDegreeEscapeRate < 15 || thirdDegreeEscapeRate > 65)) {
         setError("3rd Degree AV Block Escape Rate must be between 15 and 65 bpm."); setIsLoading(false); return;
     }
+    if (enableAtrialFibrillation && (afibRate < 200 || afibRate > 600)) {
+        setError("Atrial Fibrillation rate must be between 200 and 600 bpm."); setIsLoading(false); return;
+    }
+    if (enableAtrialFibrillation && (afibIrregularity < 0.1 || afibIrregularity > 0.9)) {
+        setError("Atrial Fibrillation irregularity must be between 0.1 and 0.9."); setIsLoading(false); return;
+    }
 
     const requestBody: AdvancedRequestBody = {
       heart_rate_bpm: heartRate, duration_sec: duration,
@@ -133,9 +146,12 @@ const ECGChart: React.FC = () => {
       wenckebach_initial_pr_sec: enableMobitzIWenckebach ? wenckebachInitialPrSec : 0.16,
       wenckebach_pr_increment_sec: enableMobitzIWenckebach ? wenckebachPrIncrementSec : 0.04,
       wenckebach_max_pr_before_drop_sec: enableMobitzIWenckebach ? wenckebachMaxPrBeforeDropSec : 0.32,
-      enable_third_degree_av_block: enableThirdDegreeAVBlock, // New
-      third_degree_escape_rhythm_origin: enableThirdDegreeAVBlock ? thirdDegreeEscapeOrigin : "junctional", // New
-      third_degree_escape_rate_bpm: enableThirdDegreeAVBlock ? thirdDegreeEscapeRate : null, // New
+      enable_third_degree_av_block: enableThirdDegreeAVBlock,
+      third_degree_escape_rhythm_origin: enableThirdDegreeAVBlock ? thirdDegreeEscapeOrigin : "junctional",
+      third_degree_escape_rate_bpm: enableThirdDegreeAVBlock ? thirdDegreeEscapeRate : null,
+      enable_atrial_fibrillation: enableAtrialFibrillation,
+      afib_rate_bpm: enableAtrialFibrillation ? afibRate : 300,
+      afib_irregularity: enableAtrialFibrillation ? afibIrregularity : 0.7,
     };
 
     try {
@@ -293,6 +309,30 @@ const ECGChart: React.FC = () => {
   const handleThirdDegreeEscapeRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     setThirdDegreeEscapeRate(isNaN(val) ? 20 : Math.max(15, Math.min(65, val))); // Clamp rate
+  };
+
+  // Event handlers for Atrial Fibrillation
+  const handleEnableAtrialFibrillationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEnableAtrialFibrillation(e.target.checked);
+    // When enabling AFib, disable conflicting rhythms for clarity
+    if (e.target.checked) {
+      setEnablePac(false); // PACs wouldn't make sense in AFib
+    }
+  };
+
+  const handleAfibRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setAfibRate(isNaN(val) ? 300 : val);
+  };
+
+  const handleAfibRateBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setAfibRate(isNaN(val) ? 300 : Math.max(200, Math.min(600, val)));
+  };
+
+  const handleAfibIrregularityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setAfibIrregularity(isNaN(val) ? 0.7 : Math.max(0.1, Math.min(0.9, val)));
   };
 
   return (
@@ -458,20 +498,69 @@ const ECGChart: React.FC = () => {
                 </div>
               </div>
 
-              {/* Ectopic Controls Section */}
-              <div className="mb-6">
-                 {/* ... (Ectopic Settings - no change) ... */}
-                 <h2 className="flex items-center font-semibold text-lg mb-2 text-gray-200">Ectopic Beat Settings</h2>
+              {/* Atrial Arrhythmias Section */}
+              <div className="mb-6 pb-5 border-b border-gray-700">
+                <h2 className="flex items-center font-semibold text-lg mb-2 text-gray-200">Atrial Arrhythmias</h2>
                 <div className="space-y-5">
+                  {/* Atrial Fibrillation Controls */}
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-medium text-neutral-300">Atrial Fibrillation</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableAtrialFibrillationCheckbox" checked={enableAtrialFibrillation} onChange={handleEnableAtrialFibrillationChange} className="sr-only peer"/>
+                        <label htmlFor="enableAtrialFibrillationCheckbox" className="block h-5 w-10 cursor-pointer rounded-full bg-neutral-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"></label>
+                      </div>
+                    </div>
+                    {enableAtrialFibrillation && (
+                      <div className="space-y-3 mt-3">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="afibRateInput" className="text-xs font-medium text-neutral-400">Atrial Rate (bpm):</label>
+                            <div className="text-right text-neutral-300 text-xs">{afibRate}</div>
+                          </div>
+                          <input
+                            id="afibRateInput"
+                            type="range"
+                            value={afibRate}
+                            onChange={handleAfibRateChange}
+                            min="200"
+                            max="600"
+                            step="10"
+                            className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Typical range: 350-600 for new-onset AFib, 200-350 for chronic</p>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="afibIrregularityInput" className="text-xs font-medium text-neutral-400">Irregularity (0.1-0.9):</label>
+                            <div className="text-right text-neutral-300 text-xs">{afibIrregularity.toFixed(1)}</div>
+                          </div>
+                          <input
+                            id="afibIrregularityInput"
+                            type="range"
+                            value={afibIrregularity}
+                            onChange={handleAfibIrregularityChange}
+                            min="0.1"
+                            max="0.9"
+                            step="0.1"
+                            className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Higher values create more irregular R-R intervals</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* PAC (single ectopic) Controls */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center">
                       <h3 className="text-sm font-medium text-neutral-100">Premature Atrial Contractions</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
-                        <input type="checkbox" id="enablePacCheckbox" checked={enablePac} onChange={handleEnablePacChange} className="sr-only peer"/>
-                        <label htmlFor="enablePacCheckbox" className="block h-5 w-10 cursor-pointer rounded-full bg-neutral-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"></label>
+                        <input type="checkbox" id="enablePacCheckbox" checked={enablePac} onChange={handleEnablePacChange} disabled={enableAtrialFibrillation} className="sr-only peer"/>
+                        <label htmlFor="enablePacCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${enableAtrialFibrillation ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
                       </div>
                     </div>
-                    {enablePac && (
+                    {enablePac && !enableAtrialFibrillation && (
                       <div className="mt-3">
                         <div className="flex justify-between items-center mb-1">
                           <label htmlFor="pacProbInput" className="text-xs font-medium text-neutral-300">Probability per Sinus Beat</label>
@@ -480,7 +569,17 @@ const ECGChart: React.FC = () => {
                         <input type="range" value={pacProbability} onChange={handlePacProbabilityChange} min="0" max="1" step="0.01" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
                       </div>
                     )}
+                    {enableAtrialFibrillation && (
+                      <p className="text-xs text-gray-500 mt-2">PACs not available in Atrial Fibrillation</p>
+                    )}
                   </div>
+                </div>
+              </div>
+              
+              {/* Ventricular Ectopy Controls Section */}
+              <div className="mb-6">
+                <h2 className="flex items-center font-semibold text-lg mb-2 text-gray-200">Ventricular Ectopy</h2>
+                <div className="space-y-5">
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center">
                       <h3 className="text-sm font-medium text-neutral-300">Premature Ventricular Contractions</h3>
@@ -492,7 +591,7 @@ const ECGChart: React.FC = () => {
                     {enablePvc && (
                       <div className="mt-3">
                         <div className="flex justify-between items-center mb-1">
-                          <label htmlFor="pvcProbInput" className="text-xs font-medium text-neutral-400">Probability per Sinus Beat</label>
+                          <label htmlFor="pvcProbInput" className="text-xs font-medium text-neutral-400">Probability per Beat</label>
                           <div className="text-right text-neutral-300 text-xs">{pvcProbability.toFixed(2)}</div>
                         </div>
                         <input type="range" value={pvcProbability} onChange={handlePvcProbabilityChange} min="0" max="1" step="0.01" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
