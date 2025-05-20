@@ -172,7 +172,6 @@ const ECGChart: React.FC = () => {
     };
 
     try {
-      // ... (fetch logic remains the same) ...
       const response = await fetch('http://localhost:8000/api/generate_advanced_ecg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', },
@@ -188,7 +187,6 @@ const ECGChart: React.FC = () => {
       setEcgData({ time_axis: data.time_axis || [], ecg_signal: data.ecg_signal || [] });
       setChartTitle(data.rhythm_generated || `Simulated ECG`);
     } catch (e: any) {
-      // ... (error handling remains the same) ...
       console.error("Failed to fetch ECG data:", e);
       const message = e instanceof Error ? e.message : "An unknown error occurred";
       setError(message);
@@ -200,7 +198,6 @@ const ECGChart: React.FC = () => {
   };
 
   useEffect(() => { fetchEcgData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
-
 
   const chartDataConfig: ChartData<'line', number[], string> = {
     labels: ecgData.time_axis.map(t => t.toFixed(2)),
@@ -287,7 +284,7 @@ const ECGChart: React.FC = () => {
     const val = parseInt(e.target.value, 10); setMobitzIIPWavesPerQRS(isNaN(val) ? 2 : Math.max(2, val));
   };
 
-  // Event Handlers for Wenckebach (Mobitz I) - New
+  // Event Handlers for Wenckebach (Mobitz I)
   const handleEnableMobitzIWenckebachChange = (e: React.ChangeEvent<HTMLInputElement>) => setEnableMobitzIWenckebach(e.target.checked);
   const handleWenckebachInitialPrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value); setWenckebachInitialPrSec(isNaN(val) ? 0.12 : val);
@@ -386,7 +383,6 @@ const ECGChart: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
           {/* Title area */}
           <div className="lg:col-span-4 mb-2">
-            {/* ... (Title) */}
             <h1 className="text-2xl font-bold text-neutral-800 flex items-center">Advanced ECG Simulator</h1>
             <p className='text-neutral-800 text-sm'>Utilize the different settings to create various heart rhythms. </p>
           </div>
@@ -396,7 +392,7 @@ const ECGChart: React.FC = () => {
             <div className="bg-neutral-900 rounded-xl p-6 h-full overflow-y-auto max-h-[calc(100vh-150px)]">
               {/* Basic Controls Section */}
               <div className="mb-6 pb-5 border-b border-gray-700">
-                {/* ... (Basic Settings - no change) ... */}
+                {/* ... (Basic Settings) ... */}
                 <h2 className="flex items-center text-lg font-semibold mb-2 text-gray-50">Basic Settings</h2>
                 <div className="space-y-6">
                   <div>
@@ -430,7 +426,7 @@ const ECGChart: React.FC = () => {
                 <div className="space-y-5">
                   {/* 1st Degree AV Block */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    {/* ... (1st Degree UI - no change) ... */}
+                    {/* ... (1st Degree UI) ... */}
                     <div className="flex justify-between items-center">
                       <h3 className="text-sm font-medium text-neutral-300">1st Degree AV Block</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -449,7 +445,7 @@ const ECGChart: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Mobitz Type I (Wenckebach) - New */}
+                  {/* Mobitz Type I (Wenckebach) */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center mb-3">
                       <h3 className="text-sm font-medium text-neutral-300">2nd Degree AV Block Type I (Wenckebach)</h3>
@@ -700,7 +696,7 @@ const ECGChart: React.FC = () => {
               </div>
               
               {/* Generate Button */}
-              {/* ... (Generate Button - no change) ... */}
+              {/* ... (Generate Button) ... */}
               <button onClick={fetchEcgData} disabled={isLoading} className={`w-full px-3 py-3 rounded-lg text-white font-medium shadow transition-all ${isLoading ? 'bg-gray-700 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600 active:bg-red-700'}`}>
                 {isLoading ? (<span className="flex items-center justify-center"><svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Generating...</span>)
                 : (<span className="flex items-center justify-center"><svg className="mr-1" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2v4a1 1 0 0 0 1 1h4"></path><path d="M18 9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7"></path><path d="M3 12h5l2 3 3-6 2 3h6"></path></svg>Generate ECG</span>)}
