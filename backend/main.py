@@ -212,7 +212,7 @@ def generate_physiologically_accurate_ecg(
     svt_initiation_probability_after_pac: float,
     svt_duration_sec: float,
     svt_rate_bpm: int,
-    fs: int = FS
+    fs: int
 ):
     base_rr_interval_sec = 60.0 / heart_rate_bpm if heart_rate_bpm > 0 else float('inf')
     num_total_samples = int(duration_sec * fs)
@@ -221,8 +221,9 @@ def generate_physiologically_accurate_ecg(
     event_queue: List[BeatEvent] = []
     
     sa_node_next_fire_time = 0.0
-    sa_node_last_actual_fire_time_for_p_wave = -base_rr_interval_sec 
-    last_placed_qrs_onset_time = -base_rr_interval_sec 
+    sa_node_last_actual_fire_time_for_p_wave = -base_rr_interval_sec if base_rr_interval_sec != float('inf') else -1.0
+    
+    last_placed_qrs_onset_time = -base_rr_interval_sec if base_rr_interval_sec != float('inf') else -1.0
     ventricle_ready_for_next_qrs_at_time = 0.0
     
     p_wave_counter_for_mobitz_ii = 0
@@ -234,78 +235,82 @@ def generate_physiologically_accurate_ecg(
     svt_actual_end_time: Optional[float] = None
     
     can_have_dynamic_svt = allow_svt_initiation_by_pac
-
     is_aflutter_active_base = enable_atrial_flutter and not can_have_dynamic_svt
     is_afib_active_base = enable_atrial_fibrillation and not can_have_dynamic_svt and not is_aflutter_active_base
     is_third_degree_block_active_base = enable_third_degree_av_block and not can_have_dynamic_svt and not is_afib_active_base and not is_aflutter_active_base
-    
     is_mobitz_i_active_base = enable_mobitz_i_wenckebach and not (is_aflutter_active_base or is_afib_active_base or is_third_degree_block_active_base)
     is_mobitz_ii_active_base = enable_mobitz_ii_av_block and not (is_aflutter_active_base or is_afib_active_base or is_third_degree_block_active_base or is_mobitz_i_active_base)
     is_first_degree_av_block_active_base = (first_degree_av_block_pr_sec is not None) and not (is_aflutter_active_base or is_afib_active_base or is_third_degree_block_active_base or is_mobitz_i_active_base or is_mobitz_ii_active_base)
-
+    
     flutter_wave_rr_interval_sec = 0.0
     flutter_wave_counter_for_av_block = 0
-    
+
     if is_aflutter_active_base:
         flutter_wave_rr_interval_sec = 60.0 / atrial_flutter_rate_bpm if atrial_flutter_rate_bpm > 0 else float('inf')
-        heapq.heappush(event_queue, BeatEvent(0.0, "flutter_wave", "aflutter_focus"))
+        if flutter_wave_rr_interval_sec > 0 and flutter_wave_rr_interval_sec != float('inf'):
+            heapq.heappush(event_queue, BeatEvent(0.0, "flutter_wave", "aflutter_focus"))
     elif is_afib_active_base:
         mean_afib_rr_sec = 60.0 / afib_average_ventricular_rate_bpm if afib_average_ventricular_rate_bpm > 0 else float('inf')
-        first_qrs_delay = np.random.uniform(0.1, mean_afib_rr_sec * 0.6) 
-        heapq.heappush(event_queue, BeatEvent(first_qrs_delay, "afib_conducted", "afib_av_node"))
+        if mean_afib_rr_sec > 0 and mean_afib_rr_sec != float('inf'):
+            first_qrs_delay = np.random.uniform(0.1, mean_afib_rr_sec * 0.6) 
+            heapq.heappush(event_queue, BeatEvent(first_qrs_delay, "afib_conducted", "afib_av_node"))
     elif is_third_degree_block_active_base:
-        heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+        if base_rr_interval_sec > 0 and base_rr_interval_sec != float('inf'):
+             heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
         escape_beat_type = "junctional_escape" if third_degree_escape_rhythm_origin == "junctional" else "ventricular_escape"
         default_escape_rate = 45.0 if third_degree_escape_rhythm_origin == "junctional" else 30.0
         actual_escape_rate_bpm = third_degree_escape_rate_bpm or default_escape_rate
         escape_rr_interval_sec = 60.0 / actual_escape_rate_bpm if actual_escape_rate_bpm > 0 else float('inf')
-        
         sinus_pr_for_offset = BEAT_MORPHOLOGIES["sinus"]["pr_interval"]
         if is_first_degree_av_block_active_base and first_degree_av_block_pr_sec:
              sinus_pr_for_offset = first_degree_av_block_pr_sec
-
         first_escape_fire_time = max(0.1, sinus_pr_for_offset + np.random.uniform(0.05, 0.15))
-        heapq.heappush(event_queue, BeatEvent(first_escape_fire_time, escape_beat_type, f"{third_degree_escape_rhythm_origin}_escape"))
+        if escape_rr_interval_sec > 0 and escape_rr_interval_sec != float('inf'):
+            heapq.heappush(event_queue, BeatEvent(first_escape_fire_time, escape_beat_type, f"{third_degree_escape_rhythm_origin}_escape"))
     else: 
-        heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+        if base_rr_interval_sec > 0 and base_rr_interval_sec != float('inf'):
+            heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
 
     while event_queue and event_queue[0].time < duration_sec:
         current_event = heapq.heappop(event_queue)
         potential_event_time = current_event.time
         
         if is_svt_currently_active and svt_termination_time is not None and potential_event_time >= svt_termination_time:
+            print(f"DEBUG: SVT Terminating. Potential Event Time: {potential_event_time:.3f}, SVT Term Time: {svt_termination_time:.3f}")
             svt_actual_end_time = svt_termination_time 
             is_svt_currently_active = False
             svt_termination_time = None
 
             event_queue = [e for e in event_queue if not (e.beat_type == "svt_beat" and e.time >= svt_actual_end_time - 0.001)]
             heapq.heapify(event_queue)
+            print(f"DEBUG: Cleaned event queue: {event_queue}")
             
-            # Schedule immediate resumption of sinus rhythm after a short pause
-            # Physiological recovery pause (typically 300-500ms) after SVT termination
-            recovery_delay = 0.4  # 400ms recovery before sinus rhythm resumes
-            immediate_sinus_time = svt_actual_end_time + recovery_delay
-            
-            if immediate_sinus_time < duration_sec:
-                # Add an immediate sinus beat to prevent asystole
-                if not any(e.source == "sa_node" and abs(e.time - immediate_sinus_time) < 0.001 for e in event_queue):
-                    heapq.heappush(event_queue, BeatEvent(immediate_sinus_time, "sinus", "sa_node"))
-                    sa_node_last_actual_fire_time_for_p_wave = immediate_sinus_time
-            
-            # Calculate the next regular sinus beat after the immediate one
             if base_rr_interval_sec > 0 and base_rr_interval_sec != float('inf'):
-                sa_node_next_fire_time = immediate_sinus_time + base_rr_interval_sec
-            else:
-                sa_node_next_fire_time = immediate_sinus_time + 1.0
+                print(f"DEBUG: SVT End. Last SA P Wave Time: {sa_node_last_actual_fire_time_for_p_wave:.3f}, SVT Actual End: {svt_actual_end_time:.3f}")
+                time_since_last_effective_sa_p = svt_actual_end_time - sa_node_last_actual_fire_time_for_p_wave
+                num_sa_cycles_to_catch_up = math.floor(time_since_last_effective_sa_p / base_rr_interval_sec)
+                resumed_sa_fire_time = sa_node_last_actual_fire_time_for_p_wave + (num_sa_cycles_to_catch_up + 1) * base_rr_interval_sec
+                physiological_post_svt_pause = 0.1 
+                sa_node_next_fire_time_after_svt = max(svt_actual_end_time + physiological_post_svt_pause, resumed_sa_fire_time)
+                print(f"DEBUG: Time Since Last SA P: {time_since_last_effective_sa_p:.3f}, Cycles to Catch: {num_sa_cycles_to_catch_up}")
+                print(f"DEBUG: Resumed SA Fire (Projected): {resumed_sa_fire_time:.3f}, Final Scheduled SA After SVT: {sa_node_next_fire_time_after_svt:.3f}")
 
-            if sa_node_next_fire_time < duration_sec:
-                if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time) < 0.001 for e in event_queue):
-                    heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+                if sa_node_next_fire_time_after_svt < duration_sec:
+                    if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time_after_svt) < 0.001 for e in event_queue):
+                        heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time_after_svt, "sinus", "sa_node"))
+                        print(f"DEBUG: Pushed resumed Sinus beat at {sa_node_next_fire_time_after_svt:.3f}")
+                    else:
+                        print(f"DEBUG: Duplicate SA node event prevented at {sa_node_next_fire_time_after_svt:.3f}")
+                else:
+                    print(f"DEBUG: Resumed SA beat {sa_node_next_fire_time_after_svt:.3f} is beyond duration_sec {duration_sec:.3f}")
+            else:
+                print(f"DEBUG: Base RR interval invalid ({base_rr_interval_sec}), cannot resume SA node rhythmically.")
             
-            if current_event.beat_type == "svt_beat" and potential_event_time >= svt_actual_end_time - 0.001:
-                if event_queue and event_queue[0].time < duration_sec:
-                    continue 
+            if current_event.beat_type == "svt_beat" and potential_event_time >= svt_actual_end_time - 0.001 :
+                print(f"DEBUG: Current event was SVT beat at termination point, continuing loop.")
+                if event_queue and event_queue[0].time < duration_sec: continue 
                 else: 
+                    print(f"DEBUG: Event queue empty or next event beyond duration after skipping terminating SVT beat.")
                     break 
         
         is_atrial_origin_event = current_event.source == "sa_node" or current_event.beat_type == "pac"
@@ -318,10 +323,10 @@ def generate_physiologically_accurate_ecg(
         if not is_svt_currently_active and (is_afib_active_base or is_aflutter_active_base) and is_atrial_origin_event:
             if current_event.source == "sa_node":
                  sa_node_next_fire_time = max(sa_node_next_fire_time, potential_event_time) + base_rr_interval_sec
-                 sa_node_last_actual_fire_time_for_p_wave = sa_node_next_fire_time 
                  if not (is_afib_active_base or is_aflutter_active_base or is_third_degree_block_active_base):
-                    if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time) < 0.001 for e in event_queue):
-                        heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+                    if base_rr_interval_sec != float('inf') and sa_node_next_fire_time < duration_sec:
+                        if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time) < 0.001 for e in event_queue):
+                            heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
             continue
 
         current_beat_morph_params = BEAT_MORPHOLOGIES[current_event.beat_type].copy()
@@ -352,19 +357,22 @@ def generate_physiologically_accurate_ecg(
             if atrial_flutter_av_block_ratio_qrs_to_f > 0 and flutter_wave_counter_for_av_block >= atrial_flutter_av_block_ratio_qrs_to_f:
                 flutter_wave_counter_for_av_block = 0
 
-            next_fw_time = potential_event_time + flutter_wave_rr_interval_sec
-            if flutter_wave_rr_interval_sec > 0 and flutter_wave_rr_interval_sec != float('inf') and next_fw_time < duration_sec:
-                heapq.heappush(event_queue, BeatEvent(next_fw_time, "flutter_wave", "aflutter_focus"))
+            if flutter_wave_rr_interval_sec > 0 and flutter_wave_rr_interval_sec != float('inf'):
+                next_fw_time = potential_event_time + flutter_wave_rr_interval_sec
+                if next_fw_time < duration_sec:
+                    heapq.heappush(event_queue, BeatEvent(next_fw_time, "flutter_wave", "aflutter_focus"))
             continue
 
         if not is_svt_currently_active and \
-           not is_afib_active_base and \
-           not is_aflutter_active_base and \
+           not (is_afib_active_base or is_aflutter_active_base) and \
            not is_svt_beat_event_type and \
            not is_afib_qrs_event and \
            not is_flutter_conducted_qrs_event and \
            not is_escape_event:
             
+            if is_atrial_origin_event: 
+                 sa_node_last_actual_fire_time_for_p_wave = potential_event_time
+
             if is_third_degree_block_active_base and is_atrial_origin_event:
                 qrs_is_blocked_by_av_node = True; draw_p_wave_only_for_this_atrial_event = True
                 if is_first_degree_av_block_active_base and first_degree_av_block_pr_sec :
@@ -409,7 +417,6 @@ def generate_physiologically_accurate_ecg(
                         full_ecg_signal_np[p_place_start_idx : p_place_end_idx] += y_p_wave_shape[p_shape_start_idx : p_shape_end_idx]
 
             if current_event.source == "sa_node" and not is_svt_currently_active and not (is_afib_active_base or is_aflutter_active_base):
-                sa_node_last_actual_fire_time_for_p_wave = potential_event_time 
                 sa_node_next_fire_time = max(sa_node_next_fire_time, potential_event_time) + base_rr_interval_sec
                 if base_rr_interval_sec != float('inf') and sa_node_next_fire_time < duration_sec:
                     if not any(e.source == "sa_node" and abs(e.time - sa_node_next_fire_time) < 0.001 for e in event_queue):
@@ -474,7 +481,7 @@ def generate_physiologically_accurate_ecg(
                     heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
         
         elif current_event.source == "sa_node": 
-            sa_node_last_actual_fire_time_for_p_wave = potential_event_time
+            # sa_node_last_actual_fire_time_for_p_wave was updated when AV conduction logic ran
             sa_node_next_fire_time = max(sa_node_next_fire_time, potential_event_time) + base_rr_interval_sec
             if base_rr_interval_sec != float('inf') and sa_node_next_fire_time < duration_sec:
                  if not is_svt_currently_active: 
@@ -494,13 +501,14 @@ def generate_physiologically_accurate_ecg(
                      heapq.heappush(event_queue, BeatEvent(pvc_time, "pvc", "pvc_focus"))
 
         elif current_event.beat_type == "pac": 
-            sa_node_last_actual_fire_time_for_p_wave = potential_event_time
+            # sa_node_last_actual_fire_time_for_p_wave was updated when AV conduction logic ran
             sa_node_next_fire_time = potential_event_time + base_rr_interval_sec 
             
             new_event_queue = [e for e in event_queue if not (e.source == "sa_node")] 
             heapq.heapify(new_event_queue); event_queue = new_event_queue
             if base_rr_interval_sec != float('inf') and sa_node_next_fire_time < duration_sec:
-                heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
+                 if not is_svt_currently_active: 
+                    heapq.heappush(event_queue, BeatEvent(sa_node_next_fire_time, "sinus", "sa_node"))
 
             if can_have_dynamic_svt and not is_svt_currently_active and \
                not is_afib_active_base and not is_aflutter_active_base and not is_third_degree_block_active_base:
@@ -508,6 +516,16 @@ def generate_physiologically_accurate_ecg(
                     is_svt_currently_active = True
                     svt_actual_start_time = potential_event_time 
                     svt_termination_time = svt_actual_start_time + svt_duration_sec
+                    physio_pause = 0.4
+                    resume_time  = svt_actual_start_time + svt_duration_sec + physio_pause
+                    if resume_time < duration_sec:
+                        heapq.heappush(
+                          event_queue,
+                          BeatEvent(resume_time, "sinus", "sa_node")
+                        )
+                    print(f"DEBUG: SVT Initiated. PAC time: {potential_event_time:.3f}, SVT Start: {svt_actual_start_time:.3f}, SVT Term Time: {svt_termination_time:.3f}")
+                    print(f"DEBUG: Value of sa_node_last_actual_fire_time_for_p_wave at SVT initiation: {sa_node_last_actual_fire_time_for_p_wave:.3f}")
+
                     
                     event_queue = [e for e in event_queue if not (e.source == "sa_node" and e.time >= svt_actual_start_time and e.time < svt_termination_time)]
                     heapq.heapify(event_queue)
@@ -596,21 +614,31 @@ def generate_physiologically_accurate_ecg(
         ectopic_desc.append(f"PVCs ({pvc_probability_per_sinus*100:.0f}%)")
     
     if ectopic_desc:
-        conjunction = " and " if (("with" in description_parts[-1] or svt_actual_start_time is not None) and description_parts) else " with "
-        if description_parts and not description_parts[-1].endswith(")") and not "with" in description_parts[-1] and svt_actual_start_time is None:
-             conjunction = " with "
-        elif svt_actual_start_time is not None : 
-            conjunction = " and "
-        elif description_parts and "with" in description_parts[-1]: 
-             conjunction = " and "
-
+        conjunction = " and "
         if description_parts:
-            description_parts[-1] += conjunction + " & ".join(ectopic_desc)
-        else: # Should not happen if base_desc_set logic is correct, but as a fallback
-            description_parts.append(" & ".join(ectopic_desc))
+            last_part = description_parts[-1]
+            if "with" in last_part or svt_actual_start_time is not None:
+                conjunction = " and "
+            elif not last_part.endswith(")") and not "with" in last_part:
+                 conjunction = " with "
+        elif not description_parts : 
+             conjunction = "" 
+             if len(ectopic_desc) > 1:
+                 first_ectopic = ectopic_desc.pop(0)
+                 description_parts.append(first_ectopic)
+                 conjunction = " & " 
+             else: 
+                 description_parts.append(ectopic_desc[0])
+                 ectopic_desc = [] 
 
-    final_description = " ".join(description_parts).replace("  ", " ").strip().replace("with and", "with").replace("and and", "and")
-    if not final_description: final_description = "ECG Data" # Fallback description
+        if description_parts and ectopic_desc: 
+            description_parts[-1] += conjunction + " & ".join(ectopic_desc)
+        elif not description_parts and ectopic_desc: 
+             description_parts.append(" & ".join(ectopic_desc))
+
+    final_description = " ".join(description_parts).replace("  ", " ").strip()
+    final_description = final_description.replace(" with and ", " with ").replace(" and and ", " and ")
+    if not final_description: final_description = "Simulated ECG Data"
 
     return full_time_axis_np.tolist(), full_ecg_signal_np.tolist(), final_description
 
