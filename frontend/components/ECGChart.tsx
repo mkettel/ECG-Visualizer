@@ -577,7 +577,7 @@ const ECGChart: React.FC = () => {
               {/* Basic Controls Section */}
               <div className="mb-6 pb-5 border-b border-gray-700">
                 <h2 className="flex items-center text-lg font-semibold mb-2 text-gray-50">Basic Settings</h2>
-                <div className="space-y-6">
+                <div className="space-y-2">
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <label htmlFor="hrInput" className={`text-sm font-medium ${baseHrDisabled ? 'text-gray-500' : 'text-gray-100'}`}>
@@ -611,7 +611,7 @@ const ECGChart: React.FC = () => {
                 <h2 className={`flex items-center text-lg font-semibold mb-2 ${avBlocksDisabled ? 'text-gray-600' : 'text-neutral-200'}`}>
                   AV Conduction (Sinus Base) {avBlocksDisabled ? <span className="text-xs ml-2 text-gray-500">(Disabled by Dominant Rhythm)</span> : ""}
                 </h2>
-                <div className="space-y-5">
+                <div className="space-y-2">
                   {/* 1st Degree AV Block */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center">
@@ -633,7 +633,7 @@ const ECGChart: React.FC = () => {
                   </div>
                   {/* Mobitz Type I (Wenckebach) */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex justify-between items-center mb-0">
                        <h3 className={labelTextStyles(enableMobitzIWenckebach, avBlocksDisabled)}>2nd Degree AV Block Type I (Wenckebach)</h3>
                        <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableMobitzIWenckebachCheckbox" checked={enableMobitzIWenckebach} onChange={handleEnableMobitzIWenckebachChange} disabled={avBlocksDisabled} className="sr-only peer"/>
@@ -681,10 +681,10 @@ const ECGChart: React.FC = () => {
               <div className="mb-6 pb-5 border-b border-gray-700">
                 <h2 className="text-lg font-semibold mb-2 text-gray-200">Dominant Base Rhythms</h2>
                 <p className="text-xs text-gray-400 mb-3">Enabling one of these will override Sinus base, AV conduction settings, and PAC/Dynamic SVT settings.</p>
-                <div className="space-y-5">
+                <div className="space-y-2">
                   {/* Ventricular Tachycardia */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(enableVT, enableAtrialFibrillation || enableAtrialFlutter || enableThirdDegreeAVBlock)}>Ventricular Tachycardia</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableVTCheckbox" checked={enableVT} onChange={handleEnableVTChange} 
@@ -696,14 +696,14 @@ const ECGChart: React.FC = () => {
                     {enableVT && (
                       <div className="space-y-3 mt-3">
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label htmlFor="vtStartTimeInput" className={smallLabelTextStyles()}>Start Time (sec):</label>
                             <div className={valueTextStyles()}>{vtStartTime.toFixed(1)}</div>
                           </div>
                           <input id="vtStartTimeInput" type="range" value={vtStartTime} onChange={handleVtStartTimeChange} min="0" max={duration} step="0.1" className={rangeSliderStyles(false)}/>
                         </div>
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center ">
                             <label htmlFor="vtDurationInput" className={smallLabelTextStyles()}>Duration (sec):</label>
                             <div className={valueTextStyles()}>{vtDuration.toFixed(1)}</div>
                           </div>
@@ -711,7 +711,7 @@ const ECGChart: React.FC = () => {
                           <p className="text-xs text-gray-500 mt-1">VT episode duration</p>
                         </div>
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center ">
                             <label htmlFor="vtRateInput" className={smallLabelTextStyles()}>VT Rate (bpm):</label>
                             <div className={valueTextStyles()}>{vtRate}</div>
                           </div>
@@ -723,7 +723,7 @@ const ECGChart: React.FC = () => {
                   </div>
                   {/* Atrial Fibrillation */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex justify-between items-center ">
                       <h3 className={labelTextStyles(enableAtrialFibrillation, enableAtrialFlutter || enableThirdDegreeAVBlock)}>Atrial Fibrillation</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableAtrialFibrillationCheckbox" checked={enableAtrialFibrillation} onChange={handleEnableAtrialFibrillationChange} 
@@ -733,23 +733,23 @@ const ECGChart: React.FC = () => {
                       </div>
                     </div>
                     {enableAtrialFibrillation && (
-                      <div className="space-y-3 mt-3">
+                      <div className="space-y-2 mt-3">
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label htmlFor="afibVentricularRateInput" className={smallLabelTextStyles()}>Avg. Ventricular Rate (bpm):</label>
                             <div className={valueTextStyles()}>{afibVentricularRate}</div>
                           </div>
                           <input id="afibVentricularRateInput" type="range" value={afibVentricularRate} onChange={handleAfibVentricularRateChange} min="30" max="220" step="5" className={rangeSliderStyles(false)}/>
                         </div>
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label htmlFor="afibAmplitudeInput" className={smallLabelTextStyles()}>f-wave Amplitude (mV):</label>
                             <div className={valueTextStyles()}>{afibAmplitude.toFixed(2)}</div>
                           </div>
                            <input id="afibAmplitudeInput" type="range" value={afibAmplitude} onChange={handleAfibAmplitudeChange} min="0.0" max="0.2" step="0.01" className={rangeSliderStyles(false)}/>
                         </div>
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label htmlFor="afibIrregularityInput" className={smallLabelTextStyles()}>Irregularity Factor:</label>
                             <div className={valueTextStyles()}>{afibIrregularity.toFixed(2)}</div>
                           </div>
@@ -762,7 +762,7 @@ const ECGChart: React.FC = () => {
                   </div>
                   {/* Atrial Flutter */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                     <div className="flex justify-between items-center mb-3">
+                     <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(enableAtrialFlutter, enableAtrialFibrillation || enableThirdDegreeAVBlock)}>Atrial Flutter</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableAtrialFlutterCheckbox" checked={enableAtrialFlutter} onChange={handleEnableAtrialFlutterChange} 
@@ -774,21 +774,21 @@ const ECGChart: React.FC = () => {
                     {enableAtrialFlutter && (
                        <div className="space-y-3 mt-3">
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label htmlFor="aflutterRateInput" className={smallLabelTextStyles()}>Atrial Rate (bpm):</label>
                             <div className={valueTextStyles()}>{aflutterRate}</div>
                           </div>
                           <input id="aflutterRateInput" type="range" value={aflutterRate} onChange={handleAflutterRateChange} min="200" max="400" step="10" className={rangeSliderStyles(false)}/>
                         </div>
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label htmlFor="aflutterConductionRatioInput" className={smallLabelTextStyles()}>AV Conduction Ratio (X:1):</label>
                             <div className={valueTextStyles()}>{aflutterConductionRatio}:1</div>
                           </div>
                           <input id="aflutterConductionRatioInput" type="range" value={aflutterConductionRatio} onChange={handleAflutterConductionRatioChange} min="1" max="8" step="1" className={rangeSliderStyles(false)}/>
                         </div>
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label htmlFor="aflutterAmplitudeInput" className={smallLabelTextStyles()}>Flutter Wave Amplitude (mV):</label>
                             <div className={valueTextStyles()}>{aflutterAmplitude.toFixed(2)}</div>
                           </div>
@@ -800,7 +800,7 @@ const ECGChart: React.FC = () => {
                   </div>
                   {/* 3rd Degree AV Block */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(enableThirdDegreeAVBlock, enableAtrialFibrillation || enableAtrialFlutter)}>3rd Degree AV Block</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableThirdDegreeAVBCheckbox" checked={enableThirdDegreeAVBlock} onChange={handleEnableThirdDegreeAVBChange} 
@@ -819,7 +819,7 @@ const ECGChart: React.FC = () => {
                           </select>
                         </div>
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label htmlFor="thirdDegreeEscapeRateInput" className={smallLabelTextStyles()}>Escape Rate (bpm):</label>
                             <div className={valueTextStyles()}>{thirdDegreeEscapeRate} bpm</div>
                           </div>
@@ -835,7 +835,7 @@ const ECGChart: React.FC = () => {
               {/* Ectopy & Dynamic SVT Section */}
               <div className="mb-6">
                 <h2 className="text-lg font-semibold mb-2 text-gray-200">Ectopy & Dynamic SVT</h2>
-                <div className="space-y-5">
+                <div className="space-y-2">
                   {/* PAC Controls */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center">
@@ -848,7 +848,7 @@ const ECGChart: React.FC = () => {
                     </div>
                     {enablePac && !pacsAndDynamicSvtSettingsDisabled && (
                       <div className="mt-3">
-                        <div className="flex justify-between items-center mb-1">
+                        <div className="flex justify-between items-center">
                           <label htmlFor="pacProbInput" className={smallLabelTextStyles()}>Probability per Sinus Beat</label>
                           <div className={valueTextStyles()}>{pacProbability.toFixed(2)}</div>
                         </div>
@@ -860,7 +860,7 @@ const ECGChart: React.FC = () => {
 
                   {/* Dynamic SVT (PAC-initiated) Controls */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(allowSvtInitiationByPac, !enablePac || pacsAndDynamicSvtSettingsDisabled)}>Dynamic SVT (PAC-initiated)</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="allowSvtInitiationCheckbox" checked={allowSvtInitiationByPac} onChange={handleAllowSvtInitiationChange} 
@@ -871,21 +871,21 @@ const ECGChart: React.FC = () => {
                     {allowSvtInitiationByPac && enablePac && !pacsAndDynamicSvtSettingsDisabled && (
                       <div className="space-y-3 mt-3">
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label className={smallLabelTextStyles()}>Initiation Probability per PAC:</label>
                             <div className={valueTextStyles()}>{svtInitiationProbability.toFixed(2)}</div>
                           </div>
                           <input type="range" value={svtInitiationProbability} onChange={handleSvtInitiationProbabilityChange} min="0" max="1" step="0.05" className={rangeSliderStyles(false)}/>
                         </div>
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label className={smallLabelTextStyles()}>SVT Episode Duration (s):</label>
                             <div className={valueTextStyles()}>{svtDuration}</div>
                           </div>
                           <input type="range" value={svtDuration} onChange={handleSvtDurationChange} min="1" max={Math.max(1, duration > 0 ? duration : 1)} step="1" className={rangeSliderStyles(false)}/>
                         </div>
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center">
                             <label className={smallLabelTextStyles()}>SVT Rate during Episode (bpm):</label>
                             <div className={valueTextStyles()}>{svtRate}</div>
                           </div>
@@ -907,7 +907,7 @@ const ECGChart: React.FC = () => {
                     </div>
                     {enablePvc && (
                       <div className="mt-3">
-                        <div className="flex justify-between items-center mb-1">
+                        <div className="flex justify-between items-center">
                           <label htmlFor="pvcProbInput" className={smallLabelTextStyles()}>Probability per Beat</label>
                           <div className={valueTextStyles()}>{pvcProbability.toFixed(2)}</div>
                         </div>
