@@ -516,7 +516,7 @@ def generate_physiologically_accurate_ecg(
                     is_svt_currently_active = True
                     svt_actual_start_time = potential_event_time 
                     svt_termination_time = svt_actual_start_time + svt_duration_sec
-                    physio_pause = 0.4
+                    physio_pause = 0.9
                     resume_time  = svt_actual_start_time + svt_duration_sec + physio_pause
                     if resume_time < duration_sec:
                         heapq.heappush(
