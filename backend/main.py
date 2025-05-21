@@ -316,6 +316,9 @@ def generate_physiologically_accurate_ecg(
                     first_vt_beat_time = vt_actual_start_time 
                     if first_vt_beat_time < duration_sec and first_vt_beat_time < (vt_calculated_termination_time if vt_calculated_termination_time is not None else float('inf')):
                         heapq.heappush(event_queue, BeatEvent(first_vt_beat_time, "vt_beat", "vt_focus"))
+                        physio_pause = 0.15
+                        resume_time = vt_actual_start_time + vt_duration_sec + physio_pause
+                        heapq.heappush(event_queue, BeatEvent(resume_time, "sinus", "sa_node"))
             if event_queue and event_queue[0].time < duration_sec : continue 
             else: break
 
@@ -527,6 +530,7 @@ def generate_physiologically_accurate_ecg(
             if vt_rr_interval_sec != float('inf') and next_vt_event_time < duration_sec and \
                next_vt_event_time < (vt_calculated_termination_time if vt_calculated_termination_time is not None else float('inf')):
                 heapq.heappush(event_queue, BeatEvent(next_vt_event_time, "vt_beat", "vt_focus"))
+                print(f"DEBUG: Pushed VT beat at {next_vt_event_time:.3f}")
 
         elif is_svt_beat_event_type and is_svt_currently_active:
             svt_rr_interval_sec = 60.0 / svt_rate_bpm if svt_rate_bpm > 0 else float('inf')
