@@ -63,8 +63,10 @@ interface AdvancedRequestBody {
   atrial_flutter_av_block_ratio_qrs_to_f?: number;
   atrial_flutter_wave_amplitude_mv?: number;
 
-  // NEW SVT Params
-  enable_svt?: boolean;
+  // Dynamic SVT Params
+  allow_svt_initiation_by_pac?: boolean;
+  svt_initiation_probability_after_pac?: number;
+  svt_duration_sec?: number;
   svt_rate_bpm?: number;
 }
 
@@ -73,6 +75,7 @@ const capitalizeFirstLetter = (string: string): string => {
   if (!string) return '';
   return string.charAt(0).toUpperCase() + string.slice(1);
 };
+
 
 const ECGChart: React.FC = () => {
   const [ecgData, setEcgData] = useState<ECGDataState>({ time_axis: [], ecg_signal: [] });
@@ -113,23 +116,25 @@ const ECGChart: React.FC = () => {
   const [aflutterConductionRatio, setAflutterConductionRatio] = useState<number>(2);
   const [aflutterAmplitude, setAflutterAmplitude] = useState<number>(0.15);
 
-  // NEW SVT State
-  const [enableSvt, setEnableSvt] = useState<boolean>(false);
+  // Dynamic SVT State
+  const [allowSvtInitiationByPac, setAllowSvtInitiationByPac] = useState<boolean>(false);
+  const [svtInitiationProbability, setSvtInitiationProbability] = useState<number>(0.3);
+  const [svtDuration, setSvtDuration] = useState<number>(10);
   const [svtRate, setSvtRate] = useState<number>(180);
 
   const [chartTitle, setChartTitle] = useState<string>('Simulated ECG');
   const chartRef = useRef<ChartJS<'line', number[], string> | null>(null);
 
   // Helper booleans for disabling controls
-  const isSvtActive = enableSvt;
-  const isAfibActive = enableAtrialFibrillation && !isSvtActive;
-  const isAflutterActive = enableAtrialFlutter && !isSvtActive && !isAfibActive;
-  const isThirdDegreeBlockActive = enableThirdDegreeAVBlock && !isSvtActive && !isAfibActive && !isAflutterActive;
+  const isAfibActiveBase = enableAtrialFibrillation;
+  const isAflutterActiveBase = enableAtrialFlutter;
+  const isThirdDegreeBlockActiveBase = enableThirdDegreeAVBlock;
   
-  // Any rhythm that overrides base HR or SA-driven AV conduction
-  const isDominantRhythmActive = isSvtActive || isAfibActive || isAflutterActive || isThirdDegreeBlockActive;
-  // Tachyarrhythmias specifically
-  const isTachyarrhythmiaActive = isSvtActive || isAfibActive || isAflutterActive;
+  const dominantBaseRhythmOverridesPacSvtOrAVBlocks = isAfibActiveBase || isAflutterActiveBase || isThirdDegreeBlockActiveBase;
+
+  const baseHrDisabled = dominantBaseRhythmOverridesPacSvtOrAVBlocks; 
+  const avBlocksDisabled = dominantBaseRhythmOverridesPacSvtOrAVBlocks;
+  const pacsAndDynamicSvtSettingsDisabled = dominantBaseRhythmOverridesPacSvtOrAVBlocks;
 
 
   const fetchEcgData = async () => {
@@ -177,22 +182,30 @@ const ECGChart: React.FC = () => {
           setError("Atrial Flutter wave amplitude must be between 0.05mV and 0.5mV."); setIsLoading(false); return;
         }
     }
-    if (enableSvt && (svtRate < 150 || svtRate > 250)) {
-        setError("SVT rate must be between 150 and 250 bpm."); setIsLoading(false); return;
+    if (allowSvtInitiationByPac) {
+        if (svtInitiationProbability < 0.0 || svtInitiationProbability > 1.0) {
+            setError("SVT initiation probability must be between 0.0 and 1.0."); setIsLoading(false); return;
+        }
+        if (svtDuration <= 0 || svtDuration > duration ) {
+            setError(`SVT duration must be > 0 and <= total duration (${duration}s).`); setIsLoading(false); return;
+        }
+        if (svtRate < 150 || svtRate > 250) {
+            setError("SVT rate (when active) must be between 150 and 250 bpm."); setIsLoading(false); return;
+        }
     }
 
     // Determine active flags for request body construction
-    const sendEnableSvt = enableSvt;
-    const sendEnableAfib = enableAtrialFibrillation && !sendEnableSvt;
-    const sendEnableAflutter = enableAtrialFlutter && !sendEnableSvt && !sendEnableAfib;
-    const sendEnableThirdDegreeAVBlock = enableThirdDegreeAVBlock && !sendEnableSvt && !sendEnableAfib && !sendEnableAflutter;
+    const sendEnableAfib = enableAtrialFibrillation;
+    const sendEnableAflutter = enableAtrialFlutter && !sendEnableAfib;
+    const sendEnableThirdDegreeAVBlock = enableThirdDegreeAVBlock && !sendEnableAfib && !sendEnableAflutter;
 
-    const sendEnableFirstDegreeAVBlock = enableFirstDegreeAVBlock && !sendEnableSvt && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
-    const sendEnableMobitzI = enableMobitzIWenckebach && !sendEnableSvt && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
-    const sendEnableMobitzII = enableMobitzIIAVBlock && !sendEnableSvt && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock && !sendEnableMobitzI;
+    const sendAllowSvtInitiation = allowSvtInitiationByPac && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
     
-    const sendEnablePac = enablePac && !sendEnableSvt && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
-
+    const sendEnableFirstDegreeAVBlock = enableFirstDegreeAVBlock && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
+    const sendEnableMobitzI = enableMobitzIWenckebach && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
+    const sendEnableMobitzII = enableMobitzIIAVBlock && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock && !sendEnableMobitzI;
+    
+    const sendEnablePac = enablePac && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
 
     const requestBody: AdvancedRequestBody = {
       heart_rate_bpm: heartRate, 
@@ -203,10 +216,8 @@ const ECGChart: React.FC = () => {
       pvc_probability_per_sinus: enablePvc ? pvcProbability : 0,
       
       first_degree_av_block_pr_sec: sendEnableFirstDegreeAVBlock ? firstDegreePrSec : null,
-      
       enable_mobitz_ii_av_block: sendEnableMobitzII,
       mobitz_ii_p_waves_per_qrs: sendEnableMobitzII ? mobitzIIPWavesPerQRS : 2,
-      
       enable_mobitz_i_wenckebach: sendEnableMobitzI,
       wenckebach_initial_pr_sec: sendEnableMobitzI ? wenckebachInitialPrSec : 0.16,
       wenckebach_pr_increment_sec: sendEnableMobitzI ? wenckebachPrIncrementSec : 0.04,
@@ -226,8 +237,10 @@ const ECGChart: React.FC = () => {
       atrial_flutter_av_block_ratio_qrs_to_f: sendEnableAflutter ? aflutterConductionRatio : 2,
       atrial_flutter_wave_amplitude_mv: sendEnableAflutter ? aflutterAmplitude : 0.15,
 
-      enable_svt: sendEnableSvt,
-      svt_rate_bpm: sendEnableSvt ? svtRate : 180,
+      allow_svt_initiation_by_pac: sendAllowSvtInitiation,
+      svt_initiation_probability_after_pac: sendAllowSvtInitiation ? svtInitiationProbability : 0.3,
+      svt_duration_sec: sendAllowSvtInitiation ? svtDuration : 10.0,
+      svt_rate_bpm: sendAllowSvtInitiation ? svtRate : 180,
     };
 
     try {
@@ -314,13 +327,18 @@ const ECGChart: React.FC = () => {
       },
     },
   };
-  
-  
+    
   // --- Event Handlers ---
   const handleHeartRateChange = (e: React.ChangeEvent<HTMLInputElement>) => setHeartRate(parseFloat(e.target.value) || 0);
   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => setDuration(parseFloat(e.target.value) || 0);
   
-  const handleEnablePacChange = (e: React.ChangeEvent<HTMLInputElement>) => setEnablePac(e.target.checked);
+  const handleEnablePacChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isEnabled = e.target.checked;
+    setEnablePac(isEnabled);
+    if (!isEnabled) {
+        setAllowSvtInitiationByPac(false);
+    }
+  };
   const handlePacProbabilityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value); setPacProbability(isNaN(val) ? 0 : Math.max(0, Math.min(1, val)));
   };
@@ -333,8 +351,8 @@ const ECGChart: React.FC = () => {
   const handleEnableFirstDegreeAVBChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const isEnabled = e.target.checked;
     setEnableFirstDegreeAVBlock(isEnabled);
-    if (isEnabled) { // 1st degree can co-exist with Mobitz II if Mobitz I is off
-        setEnableMobitzIWenckebach(false); // Typically 1st deg + Wenck is just Wenck.
+    if (isEnabled) {
+        setEnableMobitzIWenckebach(false); 
     }
   };
   const handleFirstDegreePrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -348,7 +366,7 @@ const ECGChart: React.FC = () => {
     const isEnabled = e.target.checked;
     setEnableMobitzIIAVBlock(isEnabled);
     if (isEnabled) {
-        setEnableMobitzIWenckebach(false); // Mobitz I and II are mutually exclusive
+        setEnableMobitzIWenckebach(false); 
     }
   };
   const handleMobitzIIRatioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -359,44 +377,63 @@ const ECGChart: React.FC = () => {
     const isEnabled = e.target.checked;
     setEnableMobitzIWenckebach(isEnabled);
     if (isEnabled) {
-        setEnableFirstDegreeAVBlock(false); // Wenckebach settings define initial PR
-        setEnableMobitzIIAVBlock(false); // Mobitz I and II are mutually exclusive
+        setEnableFirstDegreeAVBlock(false); 
+        setEnableMobitzIIAVBlock(false); 
     }
   };
-  const handleWenckebachInitialPrChange = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
-  const handleWenckebachInitialPrBlur = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
-  const handleWenckebachIncrementChange = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
-  const handleWenckebachIncrementBlur = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
-  const handleWenckebachMaxPrChange = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
-  const handleWenckebachMaxPrBlur = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
+  const handleWenckebachInitialPrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value); setWenckebachInitialPrSec(isNaN(val) ? 0.12 : val);
+  };
+  const handleWenckebachInitialPrBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value); setWenckebachInitialPrSec(isNaN(val) ? 0.12 : Math.max(0.12, Math.min(0.40, val)));
+  };
+  const handleWenckebachIncrementChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value); setWenckebachPrIncrementSec(isNaN(val) ? 0.01 : val);
+  };
+  const handleWenckebachIncrementBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value); setWenckebachPrIncrementSec(isNaN(val) ? 0.01 : Math.max(0.01, Math.min(0.15, val)));
+  };
+  const handleWenckebachMaxPrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value); setWenckebachMaxPrBeforeDropSec(isNaN(val) ? 0.22 : val);
+  };
+  const handleWenckebachMaxPrBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value); setWenckebachMaxPrBeforeDropSec(isNaN(val) ? 0.22 : Math.max(0.22, Math.min(0.70, val)));
+  };
 
   const handleEnableThirdDegreeAVBChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const isEnabled = e.target.checked;
     setEnableThirdDegreeAVBlock(isEnabled);
     if (isEnabled) {
-        setEnableSvt(false);
-        setEnableAtrialFibrillation(false);
-        setEnableAtrialFlutter(false);
-        setEnableFirstDegreeAVBlock(false);
-        setEnableMobitzIIAVBlock(false);
-        setEnableMobitzIWenckebach(false);
-        setEnablePac(false);
+      setEnableAtrialFibrillation(false);
+      setEnableAtrialFlutter(false);
+      setEnableFirstDegreeAVBlock(false);
+      setEnableMobitzIIAVBlock(false);
+      setEnableMobitzIWenckebach(false);
+      setEnablePac(false); 
+      setAllowSvtInitiationByPac(false);
     }
   };
-  const handleThirdDegreeEscapeOriginChange = (e: React.ChangeEvent<HTMLSelectElement>) => { /* ... */ };
-  const handleThirdDegreeEscapeRateChange = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... */ };
+  const handleThirdDegreeEscapeOriginChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setThirdDegreeEscapeOrigin(e.target.value);
+    if (e.target.value === "junctional") setThirdDegreeEscapeRate(45);
+    else if (e.target.value === "ventricular") setThirdDegreeEscapeRate(30);
+  };
+  const handleThirdDegreeEscapeRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setThirdDegreeEscapeRate(isNaN(val) ? 20 : Math.max(15, Math.min(65, val)));
+  };
 
   const handleEnableAtrialFibrillationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const isEnabled = e.target.checked;
     setEnableAtrialFibrillation(isEnabled);
     if (isEnabled) {
-      setEnableSvt(false);
       setEnableAtrialFlutter(false);
       setEnableThirdDegreeAVBlock(false);
       setEnableFirstDegreeAVBlock(false);
       setEnableMobitzIIAVBlock(false);
       setEnableMobitzIWenckebach(false);
       setEnablePac(false); 
+      setAllowSvtInitiationByPac(false);
     }
   };
   const handleAfibVentricularRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -416,13 +453,13 @@ const ECGChart: React.FC = () => {
     const isEnabled = e.target.checked;
     setEnableAtrialFlutter(isEnabled);
     if (isEnabled) {
-      setEnableSvt(false);
       setEnableAtrialFibrillation(false);
       setEnableThirdDegreeAVBlock(false);
       setEnableFirstDegreeAVBlock(false);
       setEnableMobitzIIAVBlock(false);
       setEnableMobitzIWenckebach(false);
       setEnablePac(false);
+      setAllowSvtInitiationByPac(false);
     }
   };
   const handleAflutterRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -438,48 +475,53 @@ const ECGChart: React.FC = () => {
     setAflutterAmplitude(isNaN(val) ? 0.05 : Math.max(0.05, Math.min(0.5, val)));
   };
 
-  // NEW Event Handlers for SVT
-  const handleEnableSvtChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAllowSvtInitiationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const isEnabled = e.target.checked;
-    setEnableSvt(isEnabled);
+    setAllowSvtInitiationByPac(isEnabled);
     if (isEnabled) {
+      setEnablePac(true); // SVT initiation requires PACs to be enabled
       setEnableAtrialFibrillation(false);
       setEnableAtrialFlutter(false);
       setEnableThirdDegreeAVBlock(false);
-      setEnableFirstDegreeAVBlock(false);
-      setEnableMobitzIWenckebach(false);
-      setEnableMobitzIIAVBlock(false);
-      setEnablePac(false); 
     }
+  };
+  const handleSvtInitiationProbabilityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setSvtInitiationProbability(isNaN(val) ? 0 : Math.max(0, Math.min(1, val)));
+  };
+  const handleSvtDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    // Ensure SVT duration is not longer than total simulation duration
+    setSvtDuration(isNaN(val) ? 1 : Math.max(1, Math.min(val, duration > 0 ? duration : 1))); 
   };
   const handleSvtRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
     setSvtRate(isNaN(val) ? 150 : Math.max(150, Math.min(250, val)));
   };
 
-  // Dynamic disable flags for UI elements
-  const baseHrDisabled = isDominantRhythmActive;
-  const avBlocksDisabled = isTachyarrhythmiaActive || isThirdDegreeBlockActive;
-  const pacsDisabled = isTachyarrhythmiaActive || isThirdDegreeBlockActive;
-  const afibDisabled = isSvtActive || isAflutterActive || isThirdDegreeBlockActive;
-  const aflutterDisabled = isSvtActive || isAfibActive || isThirdDegreeBlockActive;
-  const svtDisabled = isAfibActive || isAflutterActive || isThirdDegreeBlockActive;
-  const thirdDegreeDisabled = isTachyarrhythmiaActive;
+  const toggleStyles = (isDisabled: boolean) => 
+    `block h-5 w-10 cursor-pointer rounded-full ${isDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`;
+  const rangeSliderStyles = (isDisabled: boolean) =>
+    `h-1 w-full cursor-pointer appearance-none rounded-lg ${isDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 accent-red-500'}`;
+  const numberInputStyles = (isDisabled: boolean) =>
+    `w-full border ${isDisabled ? 'border-gray-600 bg-neutral-700 text-gray-500 cursor-not-allowed' : 'border-gray-700 bg-[#0e1525] text-neutral-300'} rounded-md px-2 py-1.5 text-sm focus:ring-red-500 focus:border-red-500`;
+  const labelTextStyles = (isActive: boolean, isDisabled?: boolean) => 
+    `text-sm font-medium ${isDisabled ? 'text-neutral-600' : (isActive ? 'text-neutral-300' : 'text-neutral-500')}`;
+  const smallLabelTextStyles = (isDisabled?: boolean) =>
+    `text-xs font-medium ${isDisabled ? 'text-neutral-600' : 'text-neutral-400'}`;
+  const valueTextStyles = (isDisabled?: boolean) =>
+    `text-right text-xs ${isDisabled ? 'text-neutral-600' : 'text-neutral-300'}`;
 
 
   return (
     <div className="bg-gray-50 overflow-auto text-neutral-900 rounded-md flex flex-col">
-      {/* Main container */}
       <div className="px-4 py-4 mx-auto w-full max-w-8xl">
-        {/* Title & controls layout */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
-          {/* Title area */}
           <div className="lg:col-span-4 mb-2">
             <h1 className="text-2xl font-bold text-neutral-800 flex items-center">Advanced ECG Simulator</h1>
-            <p className='text-neutral-800 text-sm'>Utilize the different settings to create various heart rhythms. </p>
+            <p className='text-neutral-800 text-sm'>Simulate various heart rhythms and episodes. </p>
           </div>
           
-          {/* Left side - Controls */}
           <div className="lg:col-span-1">
             <div className="bg-neutral-900 rounded-xl p-6 h-full overflow-y-auto max-h-[calc(100vh-150px)]">
               {/* Basic Controls Section */}
@@ -489,19 +531,17 @@ const ECGChart: React.FC = () => {
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <label htmlFor="hrInput" className={`text-sm font-medium ${baseHrDisabled ? 'text-gray-500' : 'text-gray-100'}`}>
-                        {isTachyarrhythmiaActive || isThirdDegreeBlockActive ? 'Underlying Atrial Rate (bpm)' : 'Heart Rate (bpm)'}
+                        Underlying Atrial Rate (bpm)
                       </label>
                       <div className={`text-right text-lg font-medium ${baseHrDisabled ? 'text-gray-500' : 'text-gray-100'}`}>{heartRate}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <input 
-                        type="range" value={heartRate} onChange={handleHeartRateChange} min="30" max="250" 
-                        disabled={baseHrDisabled}
-                        className={`h-1 flex-grow cursor-pointer appearance-none rounded-lg ${baseHrDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 accent-red-500'}`}
-                        />
+                      <input type="range" value={heartRate} onChange={handleHeartRateChange} min="30" max="250" 
+                             disabled={baseHrDisabled}
+                             className={rangeSliderStyles(baseHrDisabled)}/>
                       <div className={`text-xs w-12 text-right ${baseHrDisabled ? 'text-gray-500' : 'text-gray-100'}`}>bpm</div>
                     </div>
-                     {baseHrDisabled && <p className="text-xs text-gray-500 mt-1">Base heart rate is overridden by the active dominant rhythm.</p>}
+                     {baseHrDisabled && <p className="text-xs text-gray-500 mt-1">Base atrial rate is overridden if a dominant rhythm (AFib, AFlutter, 3rd Deg Block) is active.</p>}
                   </div>
                   <div>
                     <div className="flex justify-between items-center mb-2">
@@ -509,60 +549,60 @@ const ECGChart: React.FC = () => {
                       <div className="text-right text-gray-100 text-lg font-medium">{duration}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <input type="range" value={duration} onChange={handleDurationChange} min="1" max="60" className="h-1 flex-grow cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
+                      <input type="range" value={duration} onChange={handleDurationChange} min="1" max="60" className={rangeSliderStyles(false)}/>
                       <div className="text-gray-100 text-xs w-12 text-right">sec</div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* AV Conduction Settings Section */}
+              {/* AV Conduction Settings Section (Sinus Base) */}
               <div className="mb-6 pb-5 border-b border-gray-700">
                 <h2 className={`flex items-center text-lg font-semibold mb-2 ${avBlocksDisabled ? 'text-gray-600' : 'text-neutral-200'}`}>
-                  AV Conduction Settings {avBlocksDisabled ? <span className="text-xs ml-2 text-gray-500">(Disabled by Active Rhythm)</span> : ""}
+                  AV Conduction (Sinus Base) {avBlocksDisabled ? <span className="text-xs ml-2 text-gray-500">(Disabled by Dominant Rhythm)</span> : ""}
                 </h2>
                 <div className="space-y-5">
                   {/* 1st Degree AV Block */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center">
-                      <h3 className={`text-sm font-medium ${enableFirstDegreeAVBlock && !avBlocksDisabled ? 'text-neutral-300' : 'text-neutral-500'}`}>1st Degree AV Block</h3>
+                      <h3 className={labelTextStyles(enableFirstDegreeAVBlock, avBlocksDisabled)}>1st Degree AV Block</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableFirstDegreeAVBlockCheckbox" checked={enableFirstDegreeAVBlock} onChange={handleEnableFirstDegreeAVBChange} disabled={avBlocksDisabled} className="sr-only peer"/>
-                        <label htmlFor="enableFirstDegreeAVBlockCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${avBlocksDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
+                        <label htmlFor="enableFirstDegreeAVBlockCheckbox" className={toggleStyles(avBlocksDisabled)}></label>
                       </div>
                     </div>
                     {enableFirstDegreeAVBlock && !avBlocksDisabled && (
                       <div className="mt-3">
                         <div className="flex justify-between items-center mb-1">
-                          <label htmlFor="firstDegreePrInput" className="text-xs font-medium text-neutral-400">PR Interval (seconds)</label>
-                          <div className="text-right text-neutral-300 text-xs">{firstDegreePrSec.toFixed(3)}s ({(firstDegreePrSec * 1000).toFixed(0)} ms)</div>
+                          <label htmlFor="firstDegreePrInput" className={smallLabelTextStyles()}>PR Interval (seconds)</label>
+                          <div className={valueTextStyles()}>{firstDegreePrSec.toFixed(3)}s ({(firstDegreePrSec * 1000).toFixed(0)} ms)</div>
                         </div>
-                        <input type="range" id="firstDegreePrInput" value={firstDegreePrSec} onChange={handleFirstDegreePrChange} onBlur={handleFirstDegreePrBlur} min="0.201" max="0.60" step="0.001" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-gray-700 accent-red-500"/>
+                        <input type="range" id="firstDegreePrInput" value={firstDegreePrSec} onChange={handleFirstDegreePrChange} onBlur={handleFirstDegreePrBlur} min="0.201" max="0.60" step="0.001" className={rangeSliderStyles(false)}/>
                       </div>
                     )}
                   </div>
                   {/* Mobitz Type I (Wenckebach) */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center mb-3">
-                       <h3 className={`text-sm font-medium ${enableMobitzIWenckebach && !avBlocksDisabled ? 'text-neutral-300' : 'text-neutral-500'}`}>2nd Degree AV Block Type I (Wenckebach)</h3>
+                       <h3 className={labelTextStyles(enableMobitzIWenckebach, avBlocksDisabled)}>2nd Degree AV Block Type I (Wenckebach)</h3>
                        <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableMobitzIWenckebachCheckbox" checked={enableMobitzIWenckebach} onChange={handleEnableMobitzIWenckebachChange} disabled={avBlocksDisabled} className="sr-only peer"/>
-                        <label htmlFor="enableMobitzIWenckebachCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${avBlocksDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
+                        <label htmlFor="enableMobitzIWenckebachCheckbox" className={toggleStyles(avBlocksDisabled)}></label>
                       </div>
                     </div>
                     {enableMobitzIWenckebach && !avBlocksDisabled && (
                       <div className="space-y-3 mt-3">
                         <div>
-                          <label htmlFor="wenckebachInitialPrInput" className="text-xs font-medium text-neutral-400 block mb-1">Initial PR (s):</label>
-                          <input id="wenckebachInitialPrInput" type="number" value={wenckebachInitialPrSec} onChange={handleWenckebachInitialPrChange} onBlur={handleWenckebachInitialPrBlur} min="0.12" max="0.40" step="0.01" className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-neutral-300 text-sm focus:ring-red-500 focus:border-red-500"/>
+                          <label htmlFor="wenckebachInitialPrInput" className={smallLabelTextStyles()}>Initial PR (s):</label>
+                          <input id="wenckebachInitialPrInput" type="number" value={wenckebachInitialPrSec} onChange={handleWenckebachInitialPrChange} onBlur={handleWenckebachInitialPrBlur} min="0.12" max="0.40" step="0.01" className={numberInputStyles(false)}/>
                         </div>
                         <div>
-                          <label htmlFor="wenckebachIncrementInput" className="text-xs font-medium text-neutral-400 block mb-1">PR Increment (s):</label>
-                          <input id="wenckebachIncrementInput" type="number" value={wenckebachPrIncrementSec} onChange={handleWenckebachIncrementChange} onBlur={handleWenckebachIncrementBlur} min="0.01" max="0.15" step="0.01" className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-neutral-300 text-sm focus:ring-red-500 focus:border-red-500"/>
+                          <label htmlFor="wenckebachIncrementInput" className={smallLabelTextStyles()}>PR Increment (s):</label>
+                          <input id="wenckebachIncrementInput" type="number" value={wenckebachPrIncrementSec} onChange={handleWenckebachIncrementChange} onBlur={handleWenckebachIncrementBlur} min="0.01" max="0.15" step="0.01" className={numberInputStyles(false)}/>
                         </div>
                         <div>
-                          <label htmlFor="wenckebachMaxPrInput" className="text-xs font-medium text-neutral-400 block mb-1">Max PR before Drop (s):</label>
-                          <input id="wenckebachMaxPrInput" type="number" value={wenckebachMaxPrBeforeDropSec} onChange={handleWenckebachMaxPrChange} onBlur={handleWenckebachMaxPrBlur} min="0.22" max="0.70" step="0.01" className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-neutral-300 text-sm focus:ring-red-500 focus:border-red-500"/>
+                          <label htmlFor="wenckebachMaxPrInput" className={smallLabelTextStyles()}>Max PR before Drop (s):</label>
+                          <input id="wenckebachMaxPrInput" type="number" value={wenckebachMaxPrBeforeDropSec} onChange={handleWenckebachMaxPrChange} onBlur={handleWenckebachMaxPrBlur} min="0.22" max="0.70" step="0.01" className={numberInputStyles(false)}/>
                         </div>
                       </div>
                     )}
@@ -570,204 +610,225 @@ const ECGChart: React.FC = () => {
                   {/* Mobitz Type II AV Block */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center">
-                       <h3 className={`text-sm font-medium ${enableMobitzIIAVBlock && !avBlocksDisabled ? 'text-neutral-300' : 'text-neutral-500'}`}>2nd Degree AV Block Type II (Mobitz II)</h3>
+                       <h3 className={labelTextStyles(enableMobitzIIAVBlock, avBlocksDisabled)}>2nd Degree AV Block Type II (Mobitz II)</h3>
                        <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableMobitzIICheckbox" checked={enableMobitzIIAVBlock} onChange={handleEnableMobitzIIAVBChange} disabled={avBlocksDisabled} className="sr-only peer"/>
-                        <label htmlFor="enableMobitzIICheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${avBlocksDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
+                        <label htmlFor="enableMobitzIICheckbox" className={toggleStyles(avBlocksDisabled)}></label>
                       </div>
                     </div>
                     {enableMobitzIIAVBlock && !avBlocksDisabled && (
                       <div className="mt-3">
-                        <label htmlFor="mobitzIIRatioInput" className="text-xs font-medium text-neutral-400 block mb-1">P-waves per QRS (e.g., 3 for 3:1 Block):</label>
-                        <input id="mobitzIIRatioInput" type="number" value={mobitzIIPWavesPerQRS} onChange={handleMobitzIIRatioChange} min="2" step="1" className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-neutral-300 text-sm focus:ring-red-500 focus:border-red-500"/>
-                        <p className="text-xs text-gray-500 mt-1">This sets a X:1 block, where X is the number entered. For {mobitzIIPWavesPerQRS}:1 block, 1 out of {mobitzIIPWavesPerQRS} P-waves conducts.</p>
+                        <label htmlFor="mobitzIIRatioInput" className={`${smallLabelTextStyles()} block mb-1`}>P-waves per QRS (e.g., 3 for 3:1 Block):</label>
+                        <input id="mobitzIIRatioInput" type="number" value={mobitzIIPWavesPerQRS} onChange={handleMobitzIIRatioChange} min="2" step="1" className={numberInputStyles(false)}/>
+                        <p className="text-xs text-gray-500 mt-1">This sets a X:1 block. For {mobitzIIPWavesPerQRS}:1 block, 1 out of {mobitzIIPWavesPerQRS} P-waves conducts.</p>
                       </div>
                     )}
                   </div>
-                  {/* 3rd Degree AV Block Controls */}
+                </div>
+              </div>
+
+              {/* Dominant Base Rhythms (Overrides Sinus/AV blocks/PAC-SVT) */}
+              <div className="mb-6 pb-5 border-b border-gray-700">
+                <h2 className="text-lg font-semibold mb-2 text-gray-200">Dominant Base Rhythms</h2>
+                <p className="text-xs text-gray-400 mb-3">Enabling one of these will override Sinus base, AV conduction settings, and PAC/Dynamic SVT settings.</p>
+                <div className="space-y-5">
+                  {/* Atrial Fibrillation */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center mb-3">
-                      <h3 className={`text-sm font-medium ${enableThirdDegreeAVBlock && !thirdDegreeDisabled ? 'text-neutral-300' : 'text-neutral-500'}`}>3rd Degree (Complete) AV Block</h3>
+                      <h3 className={labelTextStyles(enableAtrialFibrillation, enableAtrialFlutter || enableThirdDegreeAVBlock)}>Atrial Fibrillation</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
-                        <input type="checkbox" id="enableThirdDegreeAVBCheckbox" checked={enableThirdDegreeAVBlock} onChange={handleEnableThirdDegreeAVBChange} disabled={thirdDegreeDisabled} className="sr-only peer"/>
-                        <label htmlFor="enableThirdDegreeAVBCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${thirdDegreeDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
+                        <input type="checkbox" id="enableAtrialFibrillationCheckbox" checked={enableAtrialFibrillation} onChange={handleEnableAtrialFibrillationChange} 
+                               disabled={enableAtrialFlutter || enableThirdDegreeAVBlock}
+                               className="sr-only peer"/>
+                        <label htmlFor="enableAtrialFibrillationCheckbox" className={toggleStyles(enableAtrialFlutter || enableThirdDegreeAVBlock)}></label>
                       </div>
                     </div>
-                    {enableThirdDegreeAVBlock && !thirdDegreeDisabled && (
+                    {enableAtrialFibrillation && (
                       <div className="space-y-3 mt-3">
                         <div>
-                          <label htmlFor="thirdDegreeEscapeOriginSelect" className="text-xs font-medium text-neutral-400 block mb-1">Escape Rhythm Origin:</label>
-                          <select id="thirdDegreeEscapeOriginSelect" value={thirdDegreeEscapeOrigin} onChange={handleThirdDegreeEscapeOriginChange} className="w-full border border-gray-700 bg-[#0e1525] rounded-md px-2 py-1.5 text-neutral-300 text-sm focus:ring-red-500 focus:border-red-500">
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="afibVentricularRateInput" className={smallLabelTextStyles()}>Avg. Ventricular Rate (bpm):</label>
+                            <div className={valueTextStyles()}>{afibVentricularRate}</div>
+                          </div>
+                          <input id="afibVentricularRateInput" type="range" value={afibVentricularRate} onChange={handleAfibVentricularRateChange} min="30" max="220" step="5" className={rangeSliderStyles(false)}/>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="afibAmplitudeInput" className={smallLabelTextStyles()}>f-wave Amplitude (mV):</label>
+                            <div className={valueTextStyles()}>{afibAmplitude.toFixed(2)}</div>
+                          </div>
+                           <input id="afibAmplitudeInput" type="range" value={afibAmplitude} onChange={handleAfibAmplitudeChange} min="0.0" max="0.2" step="0.01" className={rangeSliderStyles(false)}/>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="afibIrregularityInput" className={smallLabelTextStyles()}>Irregularity Factor:</label>
+                            <div className={valueTextStyles()}>{afibIrregularity.toFixed(2)}</div>
+                          </div>
+                          <input id="afibIrregularityInput" type="range" value={afibIrregularity} onChange={handleAfibIrregularityChange} min="0.05" max="0.5" step="0.01" className={rangeSliderStyles(false)}/>
+                          <p className="text-xs text-gray-500 mt-1">Higher values = more irregular R-R</p>
+                        </div>
+                      </div>
+                    )}
+                    {(enableAtrialFlutter || enableThirdDegreeAVBlock) && <p className="text-xs text-gray-500 mt-2">Not available with AFlutter or 3rd Deg Block.</p>}
+                  </div>
+                  {/* Atrial Flutter */}
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                     <div className="flex justify-between items-center mb-3">
+                      <h3 className={labelTextStyles(enableAtrialFlutter, enableAtrialFibrillation || enableThirdDegreeAVBlock)}>Atrial Flutter</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableAtrialFlutterCheckbox" checked={enableAtrialFlutter} onChange={handleEnableAtrialFlutterChange} 
+                               disabled={enableAtrialFibrillation || enableThirdDegreeAVBlock}
+                               className="sr-only peer"/>
+                        <label htmlFor="enableAtrialFlutterCheckbox" className={toggleStyles(enableAtrialFibrillation || enableThirdDegreeAVBlock)}></label>
+                        </div>
+                    </div>
+                    {enableAtrialFlutter && (
+                       <div className="space-y-3 mt-3">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="aflutterRateInput" className={smallLabelTextStyles()}>Atrial Rate (bpm):</label>
+                            <div className={valueTextStyles()}>{aflutterRate}</div>
+                          </div>
+                          <input id="aflutterRateInput" type="range" value={aflutterRate} onChange={handleAflutterRateChange} min="200" max="400" step="10" className={rangeSliderStyles(false)}/>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="aflutterConductionRatioInput" className={smallLabelTextStyles()}>AV Conduction Ratio (X:1):</label>
+                            <div className={valueTextStyles()}>{aflutterConductionRatio}:1</div>
+                          </div>
+                          <input id="aflutterConductionRatioInput" type="range" value={aflutterConductionRatio} onChange={handleAflutterConductionRatioChange} min="1" max="8" step="1" className={rangeSliderStyles(false)}/>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="aflutterAmplitudeInput" className={smallLabelTextStyles()}>Flutter Wave Amplitude (mV):</label>
+                            <div className={valueTextStyles()}>{aflutterAmplitude.toFixed(2)}</div>
+                          </div>
+                          <input id="aflutterAmplitudeInput" type="range" value={aflutterAmplitude} onChange={handleAflutterAmplitudeChange} min="0.05" max="0.5" step="0.01" className={rangeSliderStyles(false)}/>
+                        </div>
+                      </div>
+                    )}
+                    {(enableAtrialFibrillation || enableThirdDegreeAVBlock) && <p className="text-xs text-gray-500 mt-2">Not available with AFib or 3rd Deg Block.</p>}
+                  </div>
+                  {/* 3rd Degree AV Block */}
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className={labelTextStyles(enableThirdDegreeAVBlock, enableAtrialFibrillation || enableAtrialFlutter)}>3rd Degree AV Block</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableThirdDegreeAVBCheckbox" checked={enableThirdDegreeAVBlock} onChange={handleEnableThirdDegreeAVBChange} 
+                               disabled={enableAtrialFibrillation || enableAtrialFlutter}
+                               className="sr-only peer"/>
+                        <label htmlFor="enableThirdDegreeAVBCheckbox" className={toggleStyles(enableAtrialFibrillation || enableAtrialFlutter)}></label>
+                        </div>
+                    </div>
+                    {enableThirdDegreeAVBlock && (
+                      <div className="space-y-3 mt-3">
+                        <div>
+                          <label htmlFor="thirdDegreeEscapeOriginSelect" className={`${smallLabelTextStyles()} block mb-1`}>Escape Rhythm Origin:</label>
+                          <select id="thirdDegreeEscapeOriginSelect" value={thirdDegreeEscapeOrigin} onChange={handleThirdDegreeEscapeOriginChange} className={numberInputStyles(false)}>
                             <option value="junctional">Junctional</option>
                             <option value="ventricular">Ventricular</option>
                           </select>
                         </div>
                         <div>
                           <div className="flex justify-between items-center mb-1">
-                            <label htmlFor="thirdDegreeEscapeRateInput" className="text-xs font-medium text-neutral-400">Escape Rate (bpm):</label>
-                            <div className="text-right text-neutral-300 text-xs">{thirdDegreeEscapeRate} bpm</div>
+                            <label htmlFor="thirdDegreeEscapeRateInput" className={smallLabelTextStyles()}>Escape Rate (bpm):</label>
+                            <div className={valueTextStyles()}>{thirdDegreeEscapeRate} bpm</div>
                           </div>
-                          <input id="thirdDegreeEscapeRateInput" type="range" value={thirdDegreeEscapeRate} onChange={handleThirdDegreeEscapeRateChange} min="15" max="65" step="1" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
+                          <input id="thirdDegreeEscapeRateInput" type="range" value={thirdDegreeEscapeRate} onChange={handleThirdDegreeEscapeRateChange} min="15" max="65" step="1" className={rangeSliderStyles(false)}/>
                         </div>
                       </div>
                     )}
-                     {thirdDegreeDisabled && ( <p className="text-xs text-gray-500 mt-2">Not available with SVT, AFib or AFlutter</p> )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Supraventricular Tachyarrhythmias Section */}
-              <div className="mb-6 pb-5 border-b border-gray-700">
-                <h2 className="flex items-center font-semibold text-lg mb-2 text-gray-200">Supraventricular Tachyarrhythmias</h2>
-                <div className="space-y-5">
-                  {/* SVT (AVNRT-like) Controls - NEW */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className={`text-sm font-medium ${enableSvt && !svtDisabled ? 'text-neutral-300' : 'text-neutral-500'}`}>SVT (AVNRT-like)</h3>
-                      <div className="relative inline-block w-10 align-middle select-none">
-                        <input type="checkbox" id="enableSvtCheckbox" checked={enableSvt} onChange={handleEnableSvtChange} disabled={svtDisabled} className="sr-only peer" />
-                        <label htmlFor="enableSvtCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${svtDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
-                      </div>
-                    </div>
-                    {enableSvt && !svtDisabled && (
-                      <div className="space-y-3 mt-3">
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label htmlFor="svtRateInput" className="text-xs font-medium text-neutral-400">Ventricular Rate (bpm):</label>
-                            <div className="text-right text-neutral-300 text-xs">{svtRate}</div>
-                          </div>
-                          <input id="svtRateInput" type="range" value={svtRate} onChange={handleSvtRateChange} min="150" max="250" step="5"  className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500" />
-                          <p className="text-xs text-gray-500 mt-1">Regular, narrow QRS. P-waves usually hidden.</p>
-                        </div>
-                      </div>
-                    )}
-                    {svtDisabled && ( <p className="text-xs text-gray-500 mt-2">SVT not available with AFib, AFlutter, or 3rd Degree AV Block</p> )}
-                  </div>
-
-                  {/* Atrial Fibrillation Controls */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className={`text-sm font-medium ${enableAtrialFibrillation && !afibDisabled ? 'text-neutral-300' : 'text-neutral-500'}`}>Atrial Fibrillation</h3>
-                      <div className="relative inline-block w-10 align-middle select-none">
-                        <input type="checkbox" id="enableAtrialFibrillationCheckbox" checked={enableAtrialFibrillation} onChange={handleEnableAtrialFibrillationChange} disabled={afibDisabled} className="sr-only peer"/>
-                        <label htmlFor="enableAtrialFibrillationCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${afibDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
-                      </div>
-                    </div>
-                    {enableAtrialFibrillation && !afibDisabled && (
-                      <div className="space-y-3 mt-3">
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label htmlFor="afibVentricularRateInput" className="text-xs font-medium text-neutral-400">Avg. Ventricular Rate (bpm):</label>
-                            <div className="text-right text-neutral-300 text-xs">{afibVentricularRate}</div>
-                          </div>
-                          <input id="afibVentricularRateInput" type="range" value={afibVentricularRate} onChange={handleAfibVentricularRateChange} min="30" max="220" step="5" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
-                        </div>
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label htmlFor="afibAmplitudeInput" className="text-xs font-medium text-neutral-400">f-wave Amplitude (mV):</label>
-                            <div className="text-right text-neutral-300 text-xs">{afibAmplitude.toFixed(2)}</div>
-                          </div>
-                           <input id="afibAmplitudeInput" type="range" value={afibAmplitude} onChange={handleAfibAmplitudeChange} min="0.0" max="0.2" step="0.01" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
-                        </div>
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label htmlFor="afibIrregularityInput" className="text-xs font-medium text-neutral-400">Irregularity Factor:</label>
-                            <div className="text-right text-neutral-300 text-xs">{afibIrregularity.toFixed(2)}</div>
-                          </div>
-                          <input id="afibIrregularityInput" type="range" value={afibIrregularity} onChange={handleAfibIrregularityChange} min="0.05" max="0.5" step="0.01" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
-                          <p className="text-xs text-gray-500 mt-1">Higher values = more irregular R-R intervals</p>
-                        </div>
-                      </div>
-                    )}
-                    {afibDisabled && ( <p className="text-xs text-gray-500 mt-2">AFib not available with SVT, AFlutter, or 3rd Degree AV Block</p> )}
-                  </div>
-                  
-                  {/* Atrial Flutter Controls */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className={`text-sm font-medium ${enableAtrialFlutter && !aflutterDisabled ? 'text-neutral-300' : 'text-neutral-500'}`}>Atrial Flutter</h3>
-                      <div className="relative inline-block w-10 align-middle select-none">
-                        <input type="checkbox" id="enableAtrialFlutterCheckbox" checked={enableAtrialFlutter} onChange={handleEnableAtrialFlutterChange} disabled={aflutterDisabled} className="sr-only peer"/>
-                        <label htmlFor="enableAtrialFlutterCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${aflutterDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
-                      </div>
-                    </div>
-                    {enableAtrialFlutter && !aflutterDisabled && (
-                      <div className="space-y-3 mt-3">
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label htmlFor="aflutterRateInput" className="text-xs font-medium text-neutral-400">Atrial Rate (bpm):</label>
-                            <div className="text-right text-neutral-300 text-xs">{aflutterRate}</div>
-                          </div>
-                          <input id="aflutterRateInput" type="range" value={aflutterRate} onChange={handleAflutterRateChange} min="200" max="400" step="10" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
-                        </div>
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label htmlFor="aflutterConductionRatioInput" className="text-xs font-medium text-neutral-400">AV Conduction Ratio (X:1):</label>
-                            <div className="text-right text-neutral-300 text-xs">{aflutterConductionRatio}:1</div>
-                          </div>
-                          <input id="aflutterConductionRatioInput" type="range" value={aflutterConductionRatio} onChange={handleAflutterConductionRatioChange} min="1" max="8" step="1" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
-                        </div>
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label htmlFor="aflutterAmplitudeInput" className="text-xs font-medium text-neutral-400">Flutter Wave Amplitude (mV):</label>
-                            <div className="text-right text-neutral-300 text-xs">{aflutterAmplitude.toFixed(2)}</div>
-                          </div>
-                          <input id="aflutterAmplitudeInput" type="range" value={aflutterAmplitude} onChange={handleAflutterAmplitudeChange} min="0.05" max="0.5" step="0.01" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
-                        </div>
-                      </div>
-                    )}
-                     {aflutterDisabled && ( <p className="text-xs text-gray-500 mt-2">AFlutter not available with SVT, AFib, or 3rd Degree AV Block</p> )}
+                    {(enableAtrialFibrillation || enableAtrialFlutter) && <p className="text-xs text-gray-500 mt-2">Not available with AFib or AFlutter.</p>}
                   </div>
                 </div>
               </div>
               
-              {/* Ectopy Section */}
+              {/* Ectopy & Dynamic SVT Section */}
               <div className="mb-6">
-                <h2 className="flex items-center font-semibold text-lg mb-2 text-gray-200">Ectopy</h2>
+                <h2 className="text-lg font-semibold mb-2 text-gray-200">Ectopy & Dynamic SVT</h2>
                 <div className="space-y-5">
-                  {/* PAC (single ectopic) Controls */}
+                  {/* PAC Controls */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center">
-                      <h3 className={`text-sm font-medium ${enablePac && !pacsDisabled ? 'text-neutral-100' : 'text-neutral-500'}`}>Premature Atrial Contractions</h3>
+                      <h3 className={labelTextStyles(enablePac, pacsAndDynamicSvtSettingsDisabled)}>Premature Atrial Contractions (PACs)</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
-                        <input type="checkbox" id="enablePacCheckbox" checked={enablePac} onChange={handleEnablePacChange} disabled={pacsDisabled} className="sr-only peer"/>
-                        <label htmlFor="enablePacCheckbox" className={`block h-5 w-10 cursor-pointer rounded-full ${pacsDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`}></label>
+                        <input type="checkbox" id="enablePacCheckbox" checked={enablePac} onChange={handleEnablePacChange} 
+                               disabled={pacsAndDynamicSvtSettingsDisabled} className="sr-only peer"/>
+                        <label htmlFor="enablePacCheckbox" className={toggleStyles(pacsAndDynamicSvtSettingsDisabled)}></label>
                       </div>
                     </div>
-                    {enablePac && !pacsDisabled && (
+                    {enablePac && !pacsAndDynamicSvtSettingsDisabled && (
                       <div className="mt-3">
                         <div className="flex justify-between items-center mb-1">
-                          <label htmlFor="pacProbInput" className="text-xs font-medium text-neutral-300">Probability per Sinus Beat</label>
-                          <div className="text-right text-neutral-300 text-xs">{pacProbability.toFixed(2)}</div>
+                          <label htmlFor="pacProbInput" className={smallLabelTextStyles()}>Probability per Sinus Beat</label>
+                          <div className={valueTextStyles()}>{pacProbability.toFixed(2)}</div>
                         </div>
-                        <input type="range" value={pacProbability} onChange={handlePacProbabilityChange} min="0" max="1" step="0.01" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
+                        <input type="range" value={pacProbability} onChange={handlePacProbabilityChange} min="0" max="1" step="0.01" className={rangeSliderStyles(false)}/>
                       </div>
                     )}
-                    {pacsDisabled && ( <p className="text-xs text-gray-500 mt-2">PACs not available with SVT, AFib, AFlutter, or 3rd Degree Block</p> )}
+                    {pacsAndDynamicSvtSettingsDisabled && <p className="text-xs text-gray-500 mt-2">PACs (& Dynamic SVT) disabled if AFib, AFlutter, or 3rd Degree Block is active.</p>}
                   </div>
+
+                  {/* Dynamic SVT (PAC-initiated) Controls */}
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className={labelTextStyles(allowSvtInitiationByPac, !enablePac || pacsAndDynamicSvtSettingsDisabled)}>Dynamic SVT (PAC-initiated)</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="allowSvtInitiationCheckbox" checked={allowSvtInitiationByPac} onChange={handleAllowSvtInitiationChange} 
+                               disabled={!enablePac || pacsAndDynamicSvtSettingsDisabled} className="sr-only peer"/>
+                        <label htmlFor="allowSvtInitiationCheckbox" className={toggleStyles(!enablePac || pacsAndDynamicSvtSettingsDisabled)}></label>
+                        </div>
+                    </div>
+                    {allowSvtInitiationByPac && enablePac && !pacsAndDynamicSvtSettingsDisabled && (
+                      <div className="space-y-3 mt-3">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className={smallLabelTextStyles()}>Initiation Probability per PAC:</label>
+                            <div className={valueTextStyles()}>{svtInitiationProbability.toFixed(2)}</div>
+                          </div>
+                          <input type="range" value={svtInitiationProbability} onChange={handleSvtInitiationProbabilityChange} min="0" max="1" step="0.05" className={rangeSliderStyles(false)}/>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className={smallLabelTextStyles()}>SVT Episode Duration (s):</label>
+                            <div className={valueTextStyles()}>{svtDuration}</div>
+                          </div>
+                          <input type="range" value={svtDuration} onChange={handleSvtDurationChange} min="1" max={Math.max(1, duration > 0 ? duration : 1)} step="1" className={rangeSliderStyles(false)}/>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className={smallLabelTextStyles()}>SVT Rate during Episode (bpm):</label>
+                            <div className={valueTextStyles()}>{svtRate}</div>
+                          </div>
+                          <input type="range" value={svtRate} onChange={handleSvtRateChange} min="150" max="250" step="5" className={rangeSliderStyles(false)}/>
+                        </div>
+                      </div>
+                    )}
+                    {(!enablePac || pacsAndDynamicSvtSettingsDisabled) && <p className="text-xs text-gray-500 mt-2">Requires PACs to be enabled and no overriding dominant base rhythm.</p>}
+                  </div>
+
                   {/* PVC Controls */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-medium text-neutral-300">Premature Ventricular Contractions</h3>
+                      <h3 className={labelTextStyles(enablePvc, false)}>Premature Ventricular Contractions (PVCs)</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enablePvcCheckbox" checked={enablePvc} onChange={handleEnablePvcChange} className="sr-only peer"/>
-                        <label htmlFor="enablePvcCheckbox" className="block h-5 w-10 cursor-pointer rounded-full bg-neutral-700 peer-checked:bg-red-500 peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all"></label>
+                        <label htmlFor="enablePvcCheckbox" className={toggleStyles(false)}></label>
                       </div>
                     </div>
                     {enablePvc && (
                       <div className="mt-3">
                         <div className="flex justify-between items-center mb-1">
-                          <label htmlFor="pvcProbInput" className="text-xs font-medium text-neutral-400">Probability per Beat</label>
-                          <div className="text-right text-neutral-300 text-xs">{pvcProbability.toFixed(2)}</div>
+                          <label htmlFor="pvcProbInput" className={smallLabelTextStyles()}>Probability per Beat</label>
+                          <div className={valueTextStyles()}>{pvcProbability.toFixed(2)}</div>
                         </div>
-                        <input type="range" value={pvcProbability} onChange={handlePvcProbabilityChange} min="0" max="1" step="0.01" className="h-1 w-full cursor-pointer appearance-none rounded-lg bg-neutral-700 accent-red-500"/>
+                        <input type="range" value={pvcProbability} onChange={handlePvcProbabilityChange} min="0" max="1" step="0.01" className={rangeSliderStyles(false)}/>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
               
-              {/* Generate Button */}
               <button onClick={fetchEcgData} disabled={isLoading} className={`w-full px-3 py-3 rounded-lg text-white font-medium shadow transition-all ${isLoading ? 'bg-gray-700 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600 active:bg-red-700'}`}>
                 {isLoading ? (<span className="flex items-center justify-center"><svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Generating...</span>)
                 : (<span className="flex items-center justify-center"><svg className="mr-1" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2v4a1 1 0 0 0 1 1h4"></path><path d="M18 9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7"></path><path d="M3 12h5l2 3 3-6 2 3h6"></path></svg>Generate ECG</span>)}
@@ -775,16 +836,14 @@ const ECGChart: React.FC = () => {
             </div>
           </div>
           
-          {/* Right side - ECG Visualization */}
           <div className="lg:col-span-3">
             <div className="bg-neutral-900 rounded-xl overflow-hidden h-[calc(100vh-150px)] flex flex-col border border-gray-800">
               <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
                 <div className="font-medium text-gray-200">{chartTitle || 'ECG Signal'}</div>
                 <div className="text-sm text-gray-500">
-                    {isSvtActive ? `${svtRate} bpm (SVT)` : 
-                     isAfibActive ? `Avg ${afibVentricularRate} bpm (AFib)` :
-                     isAflutterActive ? `${Math.round(aflutterRate/aflutterConductionRatio)} bpm (AFlutter Ventricular)` :
-                     isThirdDegreeBlockActive ? `${thirdDegreeEscapeRate} bpm (Escape Rhythm)` :
+                    {isAfibActiveBase ? `Avg ${afibVentricularRate} bpm (AFib)` :
+                     isAflutterActiveBase ? `${Math.round(aflutterRate/aflutterConductionRatio)} bpm (AFlutter Vent.)` :
+                     isThirdDegreeBlockActiveBase ? `${thirdDegreeEscapeRate} bpm (Escape)` :
                      `${heartRate} bpm (Sinus)`}, 
                      {duration}s
                 </div>
