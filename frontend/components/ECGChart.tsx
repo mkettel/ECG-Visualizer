@@ -68,6 +68,12 @@ interface AdvancedRequestBody {
   svt_initiation_probability_after_pac?: number;
   svt_duration_sec?: number;
   svt_rate_bpm?: number;
+
+  // VT Params
+  enable_vt?: boolean;
+  vt_start_time_sec?: number | null;
+  vt_duration_sec?: number;
+  vt_rate_bpm?: number;
 }
 
 // Helper function to capitalize strings
@@ -122,6 +128,12 @@ const ECGChart: React.FC = () => {
   const [svtDuration, setSvtDuration] = useState<number>(10);
   const [svtRate, setSvtRate] = useState<number>(180);
 
+  // VT State
+  const [enableVT, setEnableVT] = useState<boolean>(false);
+  const [vtStartTime, setVtStartTime] = useState<number>(0);
+  const [vtDuration, setVtDuration] = useState<number>(5);
+  const [vtRate, setVtRate] = useState<number>(160);
+
   const [chartTitle, setChartTitle] = useState<string>('Simulated ECG');
   const chartRef = useRef<ChartJS<'line', number[], string> | null>(null);
 
@@ -129,8 +141,9 @@ const ECGChart: React.FC = () => {
   const isAfibActiveBase = enableAtrialFibrillation;
   const isAflutterActiveBase = enableAtrialFlutter;
   const isThirdDegreeBlockActiveBase = enableThirdDegreeAVBlock;
+  const isVTActiveBase = enableVT;
   
-  const dominantBaseRhythmOverridesPacSvtOrAVBlocks = isAfibActiveBase || isAflutterActiveBase || isThirdDegreeBlockActiveBase;
+  const dominantBaseRhythmOverridesPacSvtOrAVBlocks = isAfibActiveBase || isAflutterActiveBase || isThirdDegreeBlockActiveBase || isVTActiveBase;
 
   const baseHrDisabled = dominantBaseRhythmOverridesPacSvtOrAVBlocks; 
   const avBlocksDisabled = dominantBaseRhythmOverridesPacSvtOrAVBlocks;
@@ -195,17 +208,18 @@ const ECGChart: React.FC = () => {
     }
 
     // Determine active flags for request body construction
-    const sendEnableAfib = enableAtrialFibrillation;
-    const sendEnableAflutter = enableAtrialFlutter && !sendEnableAfib;
-    const sendEnableThirdDegreeAVBlock = enableThirdDegreeAVBlock && !sendEnableAfib && !sendEnableAflutter;
+    const sendEnableVT = enableVT;
+    const sendEnableAfib = enableAtrialFibrillation && !sendEnableVT;
+    const sendEnableAflutter = enableAtrialFlutter && !sendEnableAfib && !sendEnableVT;
+    const sendEnableThirdDegreeAVBlock = enableThirdDegreeAVBlock && !sendEnableAfib && !sendEnableAflutter && !sendEnableVT;
 
-    const sendAllowSvtInitiation = allowSvtInitiationByPac && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
+    const sendAllowSvtInitiation = allowSvtInitiationByPac && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock && !sendEnableVT;
     
-    const sendEnableFirstDegreeAVBlock = enableFirstDegreeAVBlock && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
-    const sendEnableMobitzI = enableMobitzIWenckebach && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
-    const sendEnableMobitzII = enableMobitzIIAVBlock && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock && !sendEnableMobitzI;
+    const sendEnableFirstDegreeAVBlock = enableFirstDegreeAVBlock && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock && !sendEnableVT;
+    const sendEnableMobitzI = enableMobitzIWenckebach && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock && !sendEnableVT;
+    const sendEnableMobitzII = enableMobitzIIAVBlock && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock && !sendEnableMobitzI && !sendEnableVT;
     
-    const sendEnablePac = enablePac && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock;
+    const sendEnablePac = enablePac && !sendEnableAfib && !sendEnableAflutter && !sendEnableThirdDegreeAVBlock && !sendEnableVT;
 
     const requestBody: AdvancedRequestBody = {
       heart_rate_bpm: heartRate, 
@@ -241,6 +255,11 @@ const ECGChart: React.FC = () => {
       svt_initiation_probability_after_pac: sendAllowSvtInitiation ? svtInitiationProbability : 0.3,
       svt_duration_sec: sendAllowSvtInitiation ? svtDuration : 10.0,
       svt_rate_bpm: sendAllowSvtInitiation ? svtRate : 180,
+      
+      enable_vt: sendEnableVT,
+      vt_start_time_sec: sendEnableVT ? vtStartTime : null,
+      vt_duration_sec: sendEnableVT ? vtDuration : 5.0,
+      vt_rate_bpm: sendEnableVT ? vtRate : 160,
     };
 
     try {
@@ -411,6 +430,7 @@ const ECGChart: React.FC = () => {
       setEnableMobitzIWenckebach(false);
       setEnablePac(false); 
       setAllowSvtInitiationByPac(false);
+      setEnableVT(false);
     }
   };
   const handleThirdDegreeEscapeOriginChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -434,6 +454,7 @@ const ECGChart: React.FC = () => {
       setEnableMobitzIWenckebach(false);
       setEnablePac(false); 
       setAllowSvtInitiationByPac(false);
+      setEnableVT(false);
     }
   };
   const handleAfibVentricularRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -460,6 +481,7 @@ const ECGChart: React.FC = () => {
       setEnableMobitzIWenckebach(false);
       setEnablePac(false);
       setAllowSvtInitiationByPac(false);
+      setEnableVT(false);
     }
   };
   const handleAflutterRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -497,6 +519,34 @@ const ECGChart: React.FC = () => {
   const handleSvtRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
     setSvtRate(isNaN(val) ? 150 : Math.max(150, Math.min(250, val)));
+  };
+
+  // VT Handlers
+  const handleEnableVTChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isEnabled = e.target.checked;
+    setEnableVT(isEnabled);
+    if (isEnabled) {
+      setEnableAtrialFibrillation(false);
+      setEnableAtrialFlutter(false);
+      setEnableThirdDegreeAVBlock(false);
+      setEnableFirstDegreeAVBlock(false);
+      setEnableMobitzIIAVBlock(false);
+      setEnableMobitzIWenckebach(false);
+      setEnablePac(false);
+      setAllowSvtInitiationByPac(false);
+    }
+  };
+  const handleVtStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setVtStartTime(isNaN(val) ? 0 : Math.max(0, Math.min(duration, val)));
+  };
+  const handleVtDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setVtDuration(isNaN(val) ? 1 : Math.max(1, Math.min(duration, val)));
+  };
+  const handleVtRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    setVtRate(isNaN(val) ? 100 : Math.max(100, Math.min(250, val)));
   };
 
   const toggleStyles = (isDisabled: boolean) => 
@@ -632,15 +682,54 @@ const ECGChart: React.FC = () => {
                 <h2 className="text-lg font-semibold mb-2 text-gray-200">Dominant Base Rhythms</h2>
                 <p className="text-xs text-gray-400 mb-3">Enabling one of these will override Sinus base, AV conduction settings, and PAC/Dynamic SVT settings.</p>
                 <div className="space-y-5">
+                  {/* Ventricular Tachycardia */}
+                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className={labelTextStyles(enableVT, enableAtrialFibrillation || enableAtrialFlutter || enableThirdDegreeAVBlock)}>Ventricular Tachycardia</h3>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableVTCheckbox" checked={enableVT} onChange={handleEnableVTChange} 
+                               disabled={enableAtrialFibrillation || enableAtrialFlutter || enableThirdDegreeAVBlock}
+                               className="sr-only peer"/>
+                        <label htmlFor="enableVTCheckbox" className={toggleStyles(enableAtrialFibrillation || enableAtrialFlutter || enableThirdDegreeAVBlock)}></label>
+                      </div>
+                    </div>
+                    {enableVT && (
+                      <div className="space-y-3 mt-3">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="vtStartTimeInput" className={smallLabelTextStyles()}>Start Time (sec):</label>
+                            <div className={valueTextStyles()}>{vtStartTime.toFixed(1)}</div>
+                          </div>
+                          <input id="vtStartTimeInput" type="range" value={vtStartTime} onChange={handleVtStartTimeChange} min="0" max={duration} step="0.1" className={rangeSliderStyles(false)}/>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="vtDurationInput" className={smallLabelTextStyles()}>Duration (sec):</label>
+                            <div className={valueTextStyles()}>{vtDuration.toFixed(1)}</div>
+                          </div>
+                          <input id="vtDurationInput" type="range" value={vtDuration} onChange={handleVtDurationChange} min="1" max={duration} step="0.5" className={rangeSliderStyles(false)}/>
+                          <p className="text-xs text-gray-500 mt-1">VT episode duration</p>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label htmlFor="vtRateInput" className={smallLabelTextStyles()}>VT Rate (bpm):</label>
+                            <div className={valueTextStyles()}>{vtRate}</div>
+                          </div>
+                          <input id="vtRateInput" type="range" value={vtRate} onChange={handleVtRateChange} min="100" max="250" step="5" className={rangeSliderStyles(false)}/>
+                        </div>
+                      </div>
+                    )}
+                    {(enableAtrialFibrillation || enableAtrialFlutter || enableThirdDegreeAVBlock) && <p className="text-xs text-gray-500 mt-2">Not available with AFib, AFlutter, or 3rd Deg Block.</p>}
+                  </div>
                   {/* Atrial Fibrillation */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
                     <div className="flex justify-between items-center mb-3">
                       <h3 className={labelTextStyles(enableAtrialFibrillation, enableAtrialFlutter || enableThirdDegreeAVBlock)}>Atrial Fibrillation</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableAtrialFibrillationCheckbox" checked={enableAtrialFibrillation} onChange={handleEnableAtrialFibrillationChange} 
-                               disabled={enableAtrialFlutter || enableThirdDegreeAVBlock}
+                               disabled={enableAtrialFlutter || enableThirdDegreeAVBlock || enableVT}
                                className="sr-only peer"/>
-                        <label htmlFor="enableAtrialFibrillationCheckbox" className={toggleStyles(enableAtrialFlutter || enableThirdDegreeAVBlock)}></label>
+                        <label htmlFor="enableAtrialFibrillationCheckbox" className={toggleStyles(enableAtrialFlutter || enableThirdDegreeAVBlock || enableVT)}></label>
                       </div>
                     </div>
                     {enableAtrialFibrillation && (
@@ -669,7 +758,7 @@ const ECGChart: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(enableAtrialFlutter || enableThirdDegreeAVBlock) && <p className="text-xs text-gray-500 mt-2">Not available with AFlutter or 3rd Deg Block.</p>}
+                    {(enableAtrialFlutter || enableThirdDegreeAVBlock || enableVT) && <p className="text-xs text-gray-500 mt-2">Not available with AFlutter, 3rd Deg Block, or VT.</p>}
                   </div>
                   {/* Atrial Flutter */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
@@ -677,9 +766,9 @@ const ECGChart: React.FC = () => {
                       <h3 className={labelTextStyles(enableAtrialFlutter, enableAtrialFibrillation || enableThirdDegreeAVBlock)}>Atrial Flutter</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableAtrialFlutterCheckbox" checked={enableAtrialFlutter} onChange={handleEnableAtrialFlutterChange} 
-                               disabled={enableAtrialFibrillation || enableThirdDegreeAVBlock}
+                               disabled={enableAtrialFibrillation || enableThirdDegreeAVBlock || enableVT}
                                className="sr-only peer"/>
-                        <label htmlFor="enableAtrialFlutterCheckbox" className={toggleStyles(enableAtrialFibrillation || enableThirdDegreeAVBlock)}></label>
+                        <label htmlFor="enableAtrialFlutterCheckbox" className={toggleStyles(enableAtrialFibrillation || enableThirdDegreeAVBlock || enableVT)}></label>
                         </div>
                     </div>
                     {enableAtrialFlutter && (
@@ -707,7 +796,7 @@ const ECGChart: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(enableAtrialFibrillation || enableThirdDegreeAVBlock) && <p className="text-xs text-gray-500 mt-2">Not available with AFib or 3rd Deg Block.</p>}
+                    {(enableAtrialFibrillation || enableThirdDegreeAVBlock || enableVT) && <p className="text-xs text-gray-500 mt-2">Not available with AFib, 3rd Deg Block, or VT.</p>}
                   </div>
                   {/* 3rd Degree AV Block */}
                   <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
@@ -715,9 +804,9 @@ const ECGChart: React.FC = () => {
                       <h3 className={labelTextStyles(enableThirdDegreeAVBlock, enableAtrialFibrillation || enableAtrialFlutter)}>3rd Degree AV Block</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="enableThirdDegreeAVBCheckbox" checked={enableThirdDegreeAVBlock} onChange={handleEnableThirdDegreeAVBChange} 
-                               disabled={enableAtrialFibrillation || enableAtrialFlutter}
+                               disabled={enableAtrialFibrillation || enableAtrialFlutter || enableVT}
                                className="sr-only peer"/>
-                        <label htmlFor="enableThirdDegreeAVBCheckbox" className={toggleStyles(enableAtrialFibrillation || enableAtrialFlutter)}></label>
+                        <label htmlFor="enableThirdDegreeAVBCheckbox" className={toggleStyles(enableAtrialFibrillation || enableAtrialFlutter || enableVT)}></label>
                         </div>
                     </div>
                     {enableThirdDegreeAVBlock && (
@@ -738,7 +827,7 @@ const ECGChart: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(enableAtrialFibrillation || enableAtrialFlutter) && <p className="text-xs text-gray-500 mt-2">Not available with AFib or AFlutter.</p>}
+                    {(enableAtrialFibrillation || enableAtrialFlutter || enableVT) && <p className="text-xs text-gray-500 mt-2">Not available with AFib, AFlutter, or VT.</p>}
                   </div>
                 </div>
               </div>
@@ -766,7 +855,7 @@ const ECGChart: React.FC = () => {
                         <input type="range" value={pacProbability} onChange={handlePacProbabilityChange} min="0" max="1" step="0.01" className={rangeSliderStyles(false)}/>
                       </div>
                     )}
-                    {pacsAndDynamicSvtSettingsDisabled && <p className="text-xs text-gray-500 mt-2">PACs (& Dynamic SVT) disabled if AFib, AFlutter, or 3rd Degree Block is active.</p>}
+                    {pacsAndDynamicSvtSettingsDisabled && <p className="text-xs text-gray-500 mt-2">PACs (& Dynamic SVT) disabled if AFib, AFlutter, 3rd Degree Block, or VT is active.</p>}
                   </div>
 
                   {/* Dynamic SVT (PAC-initiated) Controls */}
@@ -804,7 +893,7 @@ const ECGChart: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(!enablePac || pacsAndDynamicSvtSettingsDisabled) && <p className="text-xs text-gray-500 mt-2">Requires PACs to be enabled and no overriding dominant base rhythm.</p>}
+                    {(!enablePac || pacsAndDynamicSvtSettingsDisabled) && <p className="text-xs text-gray-500 mt-2">Requires PACs to be enabled and no overriding dominant rhythm (AFib, AFlutter, 3rd Deg Block, VT).</p>}
                   </div>
 
                   {/* PVC Controls */}
@@ -844,6 +933,7 @@ const ECGChart: React.FC = () => {
                     {isAfibActiveBase ? `Avg ${afibVentricularRate} bpm (AFib)` :
                      isAflutterActiveBase ? `${Math.round(aflutterRate/aflutterConductionRatio)} bpm (AFlutter Vent.)` :
                      isThirdDegreeBlockActiveBase ? `${thirdDegreeEscapeRate} bpm (Escape)` :
+                     isVTActiveBase ? `${vtRate} bpm (VT)` :
                      `${heartRate} bpm (Sinus)`}, 
                      {duration}s
                 </div>
