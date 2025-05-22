@@ -15,6 +15,8 @@ import {
   ChartOptions,
   ChartData
 } from 'chart.js';
+import { useTheme } from '../context/ThemeContext';
+import ThemeToggle from './ThemeToggle';
 
 ChartJS.register(
   CategoryScale,
@@ -84,6 +86,7 @@ const capitalizeFirstLetter = (string: string): string => {
 
 
 const ECGChart: React.FC = () => {
+  const { theme } = useTheme();
   const [ecgData, setEcgData] = useState<ECGDataState>({ time_axis: [], ecg_signal: [] });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -288,16 +291,15 @@ const ECGChart: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchEcgData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
-
+  // Create a basic data configuration
   const chartDataConfig: ChartData<'line', number[], string> = {
     labels: ecgData.time_axis.map(t => t.toFixed(2)),
     datasets: [
       {
         label: 'ECG Signal (mV)',
         data: ecgData.ecg_signal,
-        borderColor: 'rgb(239, 68, 68)',
-        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+        borderColor: theme === 'dark' ? '#ffffff' : 'var(--accent)',
+        backgroundColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'var(--accent-light)',
         borderWidth: 1.5,
         pointRadius: 0,
         tension: 0.05,
@@ -305,38 +307,56 @@ const ECGChart: React.FC = () => {
     ],
   };
 
-  const chartOptions: ChartOptions<'line'> = {
+  // Theme-aware chart options
+  const getChartOptions = (): ChartOptions<'line'> => ({
     responsive: true,
     maintainAspectRatio: false,
     animation: false,
     scales: {
       x: {
-        title: { display: true, text: 'Time (s)', color: '#CBD5E1' },
+        title: { 
+          display: true, 
+          text: 'Time (s)', 
+          color: theme === 'dark' ? '#ffffff' : 'var(--label-color)' 
+        },
         ticks: {
           maxTicksLimit: Math.max(10, Math.min(20, duration * 2)),
           autoSkipPadding: 20,
-          color: '#9CA3AF',
+          color: theme === 'dark' ? '#ffffff' : 'var(--tick-color)',
         },
-        grid: { color: '#4B5563' }
+        grid: { 
+          color: theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'var(--grid-line)' 
+        }
       },
       y: {
-        title: { display: true, text: 'Amplitude (mV)', color: '#CBD5E1' },
+        title: { 
+          display: true, 
+          text: 'Amplitude (mV)', 
+          color: theme === 'dark' ? '#ffffff' : 'var(--label-color)' 
+        },
         suggestedMin: -1.0,
         suggestedMax: 1.5,
-        ticks: { color: '#9CA3AF', stepSize: 0.5 },
-        grid: { color: '#4B5563' }
+        ticks: { 
+          color: theme === 'dark' ? '#ffffff' : 'var(--tick-color)', 
+          stepSize: 0.5 
+        },
+        grid: { 
+          color: theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'var(--grid-line)' 
+        }
       },
     },
     plugins: {
       legend: {
         display: true,
         position: 'top',
-        labels: { color: '#F3F4F6' }
+        labels: { 
+          color: theme === 'dark' ? '#ffffff' : 'var(--chart-text)' 
+        }
       },
       title: {
         display: true,
         text: chartTitle,
-        color: '#F9FAFB',
+        color: theme === 'dark' ? '#ffffff' : 'var(--chart-text)',
         font: { size: 16 }
       },
       decimation: {
@@ -345,7 +365,7 @@ const ECGChart: React.FC = () => {
         samples: Math.min(1000, ecgData.time_axis.length || 500),
       },
     },
-  };
+  });
     
   // --- Event Handlers ---
   const handleHeartRateChange = (e: React.ChangeEvent<HTMLInputElement>) => setHeartRate(parseFloat(e.target.value) || 0);
@@ -549,71 +569,111 @@ const ECGChart: React.FC = () => {
     setVtRate(isNaN(val) ? 100 : Math.max(100, Math.min(250, val)));
   };
 
+  // Style functions updated to use CSS variables
   const toggleStyles = (isDisabled: boolean) => 
-    `block h-5 w-10 cursor-pointer rounded-full ${isDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 peer-checked:bg-red-500'} peer-checked:after:translate-x-full after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-700 after:bg-white after:transition-all`;
+    `block h-5 w-10 cursor-pointer rounded-full ${isDisabled ? 'cursor-not-allowed' : 'peer-checked:after:translate-x-full'} after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:bg-white after:transition-all`
+    + (isDisabled ? ' opacity-50' : ' peer-checked:bg-[var(--accent)]')
+    + ' after:border-[var(--control-border)]'
+    + ' bg-[var(--control-bg)]';
+    
   const rangeSliderStyles = (isDisabled: boolean) =>
-    `h-1 w-full cursor-pointer appearance-none rounded-lg ${isDisabled ? 'bg-neutral-600 cursor-not-allowed' : 'bg-neutral-700 accent-red-500'}`;
+    `h-1 w-full cursor-pointer appearance-none rounded-lg ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`
+    + ' bg-[var(--control-bg)]'
+    + ' accent-[var(--accent)]';
+    
   const numberInputStyles = (isDisabled: boolean) =>
-    `w-full border ${isDisabled ? 'border-gray-600 bg-neutral-700 text-gray-500 cursor-not-allowed' : 'border-gray-700 bg-[#0e1525] text-neutral-300'} rounded-md px-2 py-1.5 text-sm focus:ring-red-500 focus:border-red-500`;
-  const labelTextStyles = (isActive: boolean, isDisabled?: boolean) => 
-    `text-sm font-medium ${isDisabled ? 'text-neutral-600' : (isActive ? 'text-neutral-300' : 'text-neutral-500')}`;
+    `w-full border rounded-md px-2 py-1.5 text-sm ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'focus:ring-[var(--accent)] focus:border-[var(--accent)]'}`
+    + ' border-[var(--control-border)]'
+    + ' bg-[var(--chart-bg)]'
+    + ' text-[var(--chart-text)]';
+    
+  const labelTextStyles = (isActive: boolean, isDisabled?: boolean) => {
+    if (isDisabled) return 'text-sm font-medium opacity-50';
+    return `text-sm font-medium ${isActive ? 'text-[var(--chart-text)]' : 'text-[var(--tick-color)]'}`;
+  };
+  
   const smallLabelTextStyles = (isDisabled?: boolean) =>
-    `text-xs font-medium ${isDisabled ? 'text-neutral-600' : 'text-neutral-400'}`;
+    `text-xs font-medium ${isDisabled ? 'opacity-50' : 'text-[var(--tick-color)]'}`;
+    
   const valueTextStyles = (isDisabled?: boolean) =>
-    `text-right text-xs ${isDisabled ? 'text-neutral-600' : 'text-neutral-300'}`;
+    `text-right text-xs ${isDisabled ? 'opacity-50' : 'text-[var(--chart-text)]'}`;
+    
+  // Utility style for help text
+  const helpTextStyles = 'text-xs mt-1 text-[var(--tick-color)] opacity-70';
+  
+  useEffect(() => { fetchEcgData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  
+  // Update chart when theme changes
+  useEffect(() => {
+    if (chartRef.current && ecgData.time_axis.length > 0) {
+      // Update datasets with new theme colors
+      chartRef.current.data.datasets[0].borderColor = theme === 'dark' ? '#ffffff' : 'var(--accent)';
+      chartRef.current.data.datasets[0].backgroundColor = theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'var(--accent-light)';
+      
+      // Update options with new theme colors
+      chartRef.current.options = getChartOptions();
+      
+      // Force a full chart redraw
+      chartRef.current.update();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, ecgData.time_axis.length]);
 
 
   return (
-    <div className="bg-gray-50 overflow-auto text-neutral-900 rounded-md flex flex-col">
+    <div className="overflow-auto rounded-md flex flex-col" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
       <div className="px-4 py-4 mx-auto w-full max-w-8xl">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
-          <div className="lg:col-span-4 mb-2">
-            <h1 className="text-2xl font-bold text-neutral-800 flex items-center">Advanced ECG Simulator</h1>
-            <p className='text-neutral-800 text-sm'>Simulate various heart rhythms and episodes. </p>
+          <div className="lg:col-span-4 mb-2 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center" style={{ color: 'var(--foreground)' }}>Advanced ECG Simulator</h1>
+              <p className='text-sm' style={{ color: 'var(--foreground)' }}>Simulate various heart rhythms and episodes. </p>
+            </div>
+            <ThemeToggle />
           </div>
           
           <div className="lg:col-span-1">
-            <div className="bg-neutral-900 relative rounded-xl p-6 pb-0 h-full overflow-y-auto max-h-[calc(100vh-150px)]">
+            <div className="relative rounded-xl p-6 pb-0 h-full overflow-y-auto max-h-[calc(100vh-150px)]" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)', borderWidth: '1px', borderStyle: 'solid' }}>
               {/* Basic Controls Section */}
-              <div className="mb-6 pb-5 border-b border-gray-700">
-                <h2 className="flex items-center text-lg font-semibold mb-2 text-gray-50">Basic Settings</h2>
+              <div className="mb-6 pb-5 border-b" style={{ borderColor: 'var(--control-border)' }}>
+                <h2 className="flex items-center text-lg font-semibold mb-2" style={{ color: 'var(--chart-text)' }}>Basic Settings</h2>
                 <div className="space-y-2">
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label htmlFor="hrInput" className={`text-sm font-medium ${baseHrDisabled ? 'text-gray-500' : 'text-gray-100'}`}>
+                      <label htmlFor="hrInput" className={`text-sm font-medium ${baseHrDisabled ? 'opacity-50' : ''}`} style={{ color: 'var(--chart-text)' }}>
                         Underlying Atrial Rate (bpm)
                       </label>
-                      <div className={`text-right text-lg font-medium ${baseHrDisabled ? 'text-gray-500' : 'text-gray-100'}`}>{heartRate}</div>
+                      <div className={`text-right text-lg font-medium ${baseHrDisabled ? 'opacity-50' : ''}`} style={{ color: 'var(--chart-text)' }}>{heartRate}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <input type="range" value={heartRate} onChange={handleHeartRateChange} min="30" max="250" 
                              disabled={baseHrDisabled}
                              className={rangeSliderStyles(baseHrDisabled)}/>
-                      <div className={`text-xs w-12 text-right ${baseHrDisabled ? 'text-gray-500' : 'text-gray-100'}`}>bpm</div>
+                      <div className={`text-xs w-12 text-right ${baseHrDisabled ? 'opacity-50' : ''}`} style={{ color: 'var(--chart-text)' }}>bpm</div>
                     </div>
-                     {baseHrDisabled && <p className="text-xs text-gray-500 mt-1">Base atrial rate is overridden if a dominant rhythm (AFib, AFlutter, 3rd Deg Block) is active.</p>}
+                     {baseHrDisabled && <p className={helpTextStyles}>Base atrial rate is overridden if a dominant rhythm (AFib, AFlutter, 3rd Deg Block) is active.</p>}
                   </div>
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label htmlFor="durInput" className="text-sm font-medium text-gray-100">Duration (seconds)</label>
-                      <div className="text-right text-gray-100 text-lg font-medium">{duration}</div>
+                      <label htmlFor="durInput" className="text-sm font-medium text-[var(--chart-text)]">Duration (seconds)</label>
+                      <div className="text-right text-lg font-medium text-[var(--chart-text)]">{duration}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <input type="range" value={duration} onChange={handleDurationChange} min="1" max="60" className={rangeSliderStyles(false)}/>
-                      <div className="text-gray-100 text-xs w-12 text-right">sec</div>
+                      <div className="text-xs w-12 text-right" style={{ color: 'var(--chart-text)' }}>sec</div>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* AV Conduction Settings Section (Sinus Base) */}
-              <div className="mb-6 pb-5 border-b border-gray-700">
-                <h2 className={`flex items-center text-lg font-semibold mb-2 ${avBlocksDisabled ? 'text-gray-600' : 'text-neutral-200'}`}>
-                  AV Conduction (Sinus Base) {avBlocksDisabled ? <span className="text-xs ml-2 text-gray-500">(Disabled by Dominant Rhythm)</span> : ""}
+              <div className="mb-6 pb-5 border-b" style={{ borderColor: 'var(--control-border)' }}>
+                <h2 className="flex items-center text-lg font-semibold mb-2" style={{ color: 'var(--chart-text)' }}>
+                  AV Conduction (Sinus Base) {avBlocksDisabled ? <span className="text-xs ml-2" style={{ color: 'var(--tick-color)', opacity: 0.9 }}>(Disabled by Dominant Rhythm)</span> : ""}
                 </h2>
                 <div className="space-y-2">
                   {/* 1st Degree AV Block */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                     <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(enableFirstDegreeAVBlock, avBlocksDisabled)}>1st Degree AV Block</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -632,7 +692,7 @@ const ECGChart: React.FC = () => {
                     )}
                   </div>
                   {/* Mobitz Type I (Wenckebach) */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                     <div className="flex justify-between items-center mb-0">
                        <h3 className={labelTextStyles(enableMobitzIWenckebach, avBlocksDisabled)}>2nd Degree AV Block Type I (Wenckebach)</h3>
                        <div className="relative inline-block w-10 align-middle select-none">
@@ -658,7 +718,7 @@ const ECGChart: React.FC = () => {
                     )}
                   </div>
                   {/* Mobitz Type II AV Block */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                     <div className="flex justify-between items-center">
                        <h3 className={labelTextStyles(enableMobitzIIAVBlock, avBlocksDisabled)}>2nd Degree AV Block Type II (Mobitz II)</h3>
                        <div className="relative inline-block w-10 align-middle select-none">
@@ -670,7 +730,7 @@ const ECGChart: React.FC = () => {
                       <div className="mt-3">
                         <label htmlFor="mobitzIIRatioInput" className={`${smallLabelTextStyles()} block mb-1`}>P-waves per QRS (e.g., 3 for 3:1 Block):</label>
                         <input id="mobitzIIRatioInput" type="number" value={mobitzIIPWavesPerQRS} onChange={handleMobitzIIRatioChange} min="2" step="1" className={numberInputStyles(false)}/>
-                        <p className="text-xs text-gray-500 mt-1">This sets a X:1 block. For {mobitzIIPWavesPerQRS}:1 block, 1 out of {mobitzIIPWavesPerQRS} P-waves conducts.</p>
+                        <p className={helpTextStyles}>This sets a X:1 block. For {mobitzIIPWavesPerQRS}:1 block, 1 out of {mobitzIIPWavesPerQRS} P-waves conducts.</p>
                       </div>
                     )}
                   </div>
@@ -678,12 +738,12 @@ const ECGChart: React.FC = () => {
               </div>
 
               {/* Dominant Base Rhythms (Overrides Sinus/AV blocks/PAC-SVT) */}
-              <div className="mb-6 pb-5 border-b border-gray-700">
-                <h2 className="text-lg font-semibold mb-2 text-gray-200">Dominant Base Rhythms</h2>
-                <p className="text-xs text-gray-400 mb-3">Enabling one of these will override Sinus base, AV conduction settings, and PAC/Dynamic SVT settings.</p>
+              <div className="mb-6 pb-5 border-b" style={{ borderColor: 'var(--control-border)' }}>
+                <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--chart-text)' }}>Dominant Base Rhythms</h2>
+                <p className={`${helpTextStyles} mb-3`}>Enabling one of these will override Sinus base, AV conduction settings, and PAC/Dynamic SVT settings.</p>
                 <div className="space-y-2">
                   {/* Ventricular Tachycardia */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                     <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(enableVT, enableAtrialFibrillation || enableAtrialFlutter || enableThirdDegreeAVBlock)}>Ventricular Tachycardia</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -708,7 +768,7 @@ const ECGChart: React.FC = () => {
                             <div className={valueTextStyles()}>{vtDuration.toFixed(1)}</div>
                           </div>
                           <input id="vtDurationInput" type="range" value={vtDuration} onChange={handleVtDurationChange} min="1" max={duration} step="0.5" className={rangeSliderStyles(false)}/>
-                          <p className="text-xs text-gray-500 mt-1">VT episode duration</p>
+                          <p className={helpTextStyles}>VT episode duration</p>
                         </div>
                         <div>
                           <div className="flex justify-between items-center ">
@@ -719,10 +779,10 @@ const ECGChart: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(enableAtrialFibrillation || enableAtrialFlutter || enableThirdDegreeAVBlock) && <p className="text-xs text-gray-500 mt-2">Not available with AFib, AFlutter, or 3rd Deg Block.</p>}
+                    {(enableAtrialFibrillation || enableAtrialFlutter || enableThirdDegreeAVBlock) && <p className={`${helpTextStyles} mt-2`}>Not available with AFib, AFlutter, or 3rd Deg Block.</p>}
                   </div>
                   {/* Atrial Fibrillation */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                     <div className="flex justify-between items-center ">
                       <h3 className={labelTextStyles(enableAtrialFibrillation, enableAtrialFlutter || enableThirdDegreeAVBlock)}>Atrial Fibrillation</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -754,14 +814,14 @@ const ECGChart: React.FC = () => {
                             <div className={valueTextStyles()}>{afibIrregularity.toFixed(2)}</div>
                           </div>
                           <input id="afibIrregularityInput" type="range" value={afibIrregularity} onChange={handleAfibIrregularityChange} min="0.05" max="0.5" step="0.01" className={rangeSliderStyles(false)}/>
-                          <p className="text-xs text-gray-500 mt-1">Higher values = more irregular R-R</p>
+                          <p className={helpTextStyles}>Higher values = more irregular R-R</p>
                         </div>
                       </div>
                     )}
-                    {(enableAtrialFlutter || enableThirdDegreeAVBlock || enableVT) && <p className="text-xs text-gray-500 mt-2">Not available with AFlutter, 3rd Deg Block, or VT.</p>}
+                    {(enableAtrialFlutter || enableThirdDegreeAVBlock || enableVT) && <p className={`${helpTextStyles} mt-2`}>Not available with AFlutter, 3rd Deg Block, or VT.</p>}
                   </div>
                   {/* Atrial Flutter */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                      <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(enableAtrialFlutter, enableAtrialFibrillation || enableThirdDegreeAVBlock)}>Atrial Flutter</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -796,10 +856,10 @@ const ECGChart: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(enableAtrialFibrillation || enableThirdDegreeAVBlock || enableVT) && <p className="text-xs text-gray-500 mt-2">Not available with AFib, 3rd Deg Block, or VT.</p>}
+                    {(enableAtrialFibrillation || enableThirdDegreeAVBlock || enableVT) && <p className={`${helpTextStyles} mt-2`}>Not available with AFib, 3rd Deg Block, or VT.</p>}
                   </div>
                   {/* 3rd Degree AV Block */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                     <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(enableThirdDegreeAVBlock, enableAtrialFibrillation || enableAtrialFlutter)}>3rd Degree AV Block</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -827,17 +887,17 @@ const ECGChart: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(enableAtrialFibrillation || enableAtrialFlutter || enableVT) && <p className="text-xs text-gray-500 mt-2">Not available with AFib, AFlutter, or VT.</p>}
+                    {(enableAtrialFibrillation || enableAtrialFlutter || enableVT) && <p className={`${helpTextStyles} mt-2`}>Not available with AFib, AFlutter, or VT.</p>}
                   </div>
                 </div>
               </div>
               
               {/* Ectopy & Dynamic SVT Section */}
               <div className="mb-6">
-                <h2 className="text-lg font-semibold mb-2 text-gray-200">Ectopy & Dynamic SVT</h2>
+                <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--chart-text)' }}>Ectopy & Dynamic SVT</h2>
                 <div className="space-y-2">
                   {/* PAC Controls */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                     <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(enablePac, pacsAndDynamicSvtSettingsDisabled)}>Premature Atrial Contractions (PACs)</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -855,11 +915,11 @@ const ECGChart: React.FC = () => {
                         <input type="range" value={pacProbability} onChange={handlePacProbabilityChange} min="0" max="1" step="0.01" className={rangeSliderStyles(false)}/>
                       </div>
                     )}
-                    {pacsAndDynamicSvtSettingsDisabled && <p className="text-xs text-gray-500 mt-2">PACs (& Dynamic SVT) disabled if AFib, AFlutter, 3rd Degree Block, or VT is active.</p>}
+                    {pacsAndDynamicSvtSettingsDisabled && <p className={`${helpTextStyles} mt-2`}>PACs (& Dynamic SVT) disabled if AFib, AFlutter, 3rd Degree Block, or VT is active.</p>}
                   </div>
 
                   {/* Dynamic SVT (PAC-initiated) Controls */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                     <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(allowSvtInitiationByPac, !enablePac || pacsAndDynamicSvtSettingsDisabled)}>Dynamic SVT (PAC-initiated)</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -893,11 +953,11 @@ const ECGChart: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(!enablePac || pacsAndDynamicSvtSettingsDisabled) && <p className="text-xs text-gray-500 mt-2">Requires PACs to be enabled and no overriding dominant rhythm (AFib, AFlutter, 3rd Deg Block, VT).</p>}
+                    {(!enablePac || pacsAndDynamicSvtSettingsDisabled) && <p className={`${helpTextStyles} mt-2`}>Requires PACs to be enabled and no overriding dominant rhythm (AFib, AFlutter, 3rd Deg Block, VT).</p>}
                   </div>
 
                   {/* PVC Controls */}
-                  <div className="bg-neutral-800 rounded-lg p-4 border border-gray-800">
+                  <div className="rounded-lg p-4 border" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)' }}>
                     <div className="flex justify-between items-center">
                       <h3 className={labelTextStyles(enablePvc, false)}>Premature Ventricular Contractions (PVCs)</h3>
                       <div className="relative inline-block w-10 align-middle select-none">
@@ -918,20 +978,44 @@ const ECGChart: React.FC = () => {
                 </div>
               </div>
               
-              <div className="sticky bottom-0 left-0 right-0 pt-4 rounded-br-lg rounded-bl-lg pb-4 bg-neutral-900/10 backdrop-blur-md mt-6 -mx-6 px-6 border-t border-gray-800">
-                <button onClick={fetchEcgData} disabled={isLoading} className={`w-full px-3 py-3 cursor-pointer rounded-lg text-white font-medium shadow transition-all ${isLoading ? 'bg-gray-700 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600 active:bg-red-700'}`}>
-                  {isLoading ? (<span className="flex items-center justify-center"><svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Generating...</span>)
-                  : (<span className="flex items-center justify-center"><svg className="mr-1" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2v4a1 1 0 0 0 1 1h4"></path><path d="M18 9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7"></path><path d="M3 12h5l2 3 3-6 2 3h6"></path></svg>Generate ECG</span>)}
+              <div className="sticky bottom-0 left-0 right-0 pt-4 rounded-br-lg rounded-bl-lg pb-4 backdrop-blur-md mt-6 -mx-6 px-6" style={{ background: 'var(--chart-bg)', borderTop: '1px solid var(--control-border)' }}>
+                <button 
+                  onClick={fetchEcgData} 
+                  disabled={isLoading} 
+                  className={`w-full px-3 py-3 cursor-pointer rounded-lg text-white font-medium shadow transition-all ${isLoading ? 'cursor-not-allowed opacity-70' : ''}`}
+                  style={{ 
+                    backgroundColor: isLoading ? 'var(--control-bg)' : 'var(--accent)',
+                    borderColor: 'var(--accent)'
+                  }}
+                >
+                  {isLoading ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generating...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center">
+                      <svg className="mr-1" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2v4a1 1 0 0 0 1 1h4"></path>
+                        <path d="M18 9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7"></path>
+                        <path d="M3 12h5l2 3 3-6 2 3h6"></path>
+                      </svg>
+                      Generate ECG
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
           </div>
           
           <div className="lg:col-span-3">
-            <div className="bg-neutral-900 rounded-xl overflow-hidden h-[calc(100vh-150px)] flex flex-col border border-gray-800">
-              <div className="px-6 py-4 border-b border-gray-800 flex justify-between items-center">
-                <div className="font-medium text-gray-200">{chartTitle || 'ECG Signal'}</div>
-                <div className="text-sm text-gray-500">
+            <div className="rounded-xl overflow-hidden h-[calc(100vh-150px)] flex flex-col" style={{ background: 'var(--chart-bg)', borderColor: 'var(--control-border)', borderWidth: '1px', borderStyle: 'solid' }}>
+              <div className="px-6 py-4 flex justify-between items-center" style={{ borderBottom: '1px solid var(--control-border)' }}>
+                <div className="font-medium" style={{ color: 'var(--chart-text)' }}>{chartTitle || 'ECG Signal'}</div>
+                <div className="text-sm" style={{ color: 'var(--tick-color)' }}>
                     {isAfibActiveBase ? `Avg ${afibVentricularRate} bpm (AFib)` :
                      isAflutterActiveBase ? `${Math.round(aflutterRate/aflutterConductionRatio)} bpm (AFlutter Vent.)` :
                      isThirdDegreeBlockActiveBase ? `${thirdDegreeEscapeRate} bpm (Escape)` :
@@ -942,11 +1026,11 @@ const ECGChart: React.FC = () => {
               </div>
               {error && (<div className="m-4 bg-red-900/30 border border-red-800 text-red-200 px-3 py-2 rounded-md text-sm flex items-center" role="alert"><svg className="mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg><span>{error}</span></div>)}
               <div className="p-4 flex-grow relative">
-                {isLoading && (<div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm z-10"><div className="text-center"><div className="animate-pulse flex space-x-2 justify-center mb-2"><div className="w-2 h-2 bg-red-400 rounded-full"></div><div className="w-2 h-2 bg-red-500 rounded-full"></div><div className="w-2 h-2 bg-red-600 rounded-full"></div></div><p className="text-gray-400 text-sm">Generating ECG data...</p></div></div>)}
-                {!isLoading && ecgData.time_axis.length > 0 && (<Line ref={chartRef} options={chartOptions} data={chartDataConfig} />)}
-                {!isLoading && ecgData.time_axis.length === 0 && !error && (<div className="h-full flex items-center justify-center"><div className="text-center text-gray-500"><svg className="mx-auto h-10 w-10 text-gray-600 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><p className="text-sm">No ECG data to display</p></div></div>)}
+                {isLoading && (<div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm z-10"><div className="text-center"><div className="animate-pulse flex space-x-2 justify-center mb-2"><div className="w-2 h-2 bg-red-400 rounded-full"></div><div className="w-2 h-2 bg-red-500 rounded-full"></div><div className="w-2 h-2 bg-red-600 rounded-full"></div></div><p className="text-sm" style={{ color: 'var(--chart-text)' }}>Generating ECG data...</p></div></div>)}
+                {!isLoading && ecgData.time_axis.length > 0 && (<Line ref={chartRef} options={getChartOptions()} data={chartDataConfig} />)}
+                {!isLoading && ecgData.time_axis.length === 0 && !error && (<div className="h-full flex items-center justify-center"><div className="text-center"><svg className="mx-auto h-10 w-10 mb-2" style={{ color: 'var(--grid-line)' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><p className="text-sm" style={{ color: 'var(--tick-color)' }}>No ECG data to display</p></div></div>)}
               </div>
-              <div className="px-4 py-2 border-t border-gray-800 text-xs text-gray-500">* This is a simulated ECG for educational purposes only</div>
+              <div className="px-4 py-2 text-xs" style={{ borderTop: '1px solid var(--control-border)', color: 'var(--tick-color)' }}>* This is a simulated ECG for educational purposes only</div>
             </div>
           </div>
         </div>

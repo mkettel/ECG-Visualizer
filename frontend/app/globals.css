@@ -1,8 +1,37 @@
 @import "tailwindcss";
 
 :root {
+  /* Base theme colors (light by default) */
   --background: #f9fafb;
   --foreground: #171717;
+  --chart-bg: #ffffff;
+  --chart-text: #1f2937;
+  --control-bg: #f1f5f9;
+  --control-border: #e2e8f0;
+  --accent: rgb(220, 38, 38);
+  --accent-light: rgba(220, 38, 38, 0.1);
+  --grid-line: #e5e7eb;
+  --label-color: #4b5563;
+  --tick-color: #6b7280;
+  --button-bg: #232323;
+  --button-accent: #f9fafb;
+}
+
+/* Dark theme colors - applied by JavaScript */
+.dark-theme {
+  --background: #0e1525;
+  --foreground: #f9fafb;
+  --chart-bg: #0e1525;
+  --chart-text: #f9fafb;
+  --control-bg: #1e293b;
+  --control-border: #334155;
+  --accent: rgb(239, 68, 68);
+  --accent-light: rgba(239, 68, 68, 0.2);
+  --grid-line: #4B5563;
+  --label-color: #CBD5E1;
+  --tick-color: #9CA3AF;
+  --button-bg: #1e293b;
+  --button-accent: #ffffff;
 }
 
 @theme inline {
@@ -12,15 +41,33 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-} */
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Theme Toggle Button Styles */
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: var(--button-bg);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle-btn:hover {
+  background-color: var(--button-accent);
+  border-color: var(--accent);
+}
+
+.theme-toggle-btn svg {
+  width: 20px;
+  height: 20px;
 }
