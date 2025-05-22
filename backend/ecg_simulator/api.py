@@ -53,6 +53,14 @@ async def get_advanced_ecg_data(params: AdvancedECGParams):
         vt_start_time_sec=params.vt_start_time_sec,
         vt_duration_sec=params.vt_duration_sec,
         vt_rate_bpm=params.vt_rate_bpm,
+        # TdP Parameters
+        enable_torsades=params.enable_torsades,
+        torsades_start_time_sec=params.torsades_start_time_sec,
+        torsades_duration_sec=params.torsades_duration_sec,
+        torsades_min_rate_bpm=params.torsades_min_rate_bpm,
+        torsades_max_rate_bpm=params.torsades_max_rate_bpm,
+        torsades_amplitude_variation_mv=params.torsades_amplitude_variation_mv,
+        torsades_cycle_duration_sec=params.torsades_cycle_duration_sec,
         fs=FS # Pass the imported FS here
     )
     return {"time_axis": time_axis, "ecg_signal": ecg_signal, "rhythm_generated": rhythm_description}

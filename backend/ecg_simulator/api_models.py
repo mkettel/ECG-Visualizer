@@ -42,3 +42,12 @@ class AdvancedECGParams(BaseModel):
     vt_start_time_sec: Optional[float] = Field(None, ge=0, description="Start time of VT episode (seconds). If None and enable_vt is true, starts near beginning.")
     vt_duration_sec: float = Field(5.0, gt=0, description="Duration of VT episode once initiated (seconds).")
     vt_rate_bpm: int = Field(160, ge=100, le=250, description="Rate of VT when active (bpm).")
+
+    # Torsades de Pointes (TdP) Parameters
+    enable_torsades: bool = Field(False)
+    torsades_start_time_sec: Optional[float] = Field(None, ge=0)
+    torsades_duration_sec: float = Field(8.0, gt=0)
+    torsades_min_rate_bpm: int = Field(180, ge=100, le=350)
+    torsades_max_rate_bpm: int = Field(280, ge=100, le=350)
+    torsades_amplitude_variation_mv: float = Field(0.5, ge=0.1, le=1.5)
+    torsades_cycle_duration_sec: float = Field(5.0, gt=1.0, le=20.0)

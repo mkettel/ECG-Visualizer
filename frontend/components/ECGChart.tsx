@@ -76,6 +76,15 @@ interface AdvancedRequestBody {
   vt_start_time_sec?: number | null;
   vt_duration_sec?: number;
   vt_rate_bpm?: number;
+
+  // Torsades de Pointes (TdP) Parameters
+  enable_torsades?: boolean;
+  torsades_start_time_sec?: number | null;
+  torsades_duration_sec?: number;
+  torsades_min_rate_bpm?: number;
+  torsades_max_rate_bpm?: number;
+  torsades_amplitude_variation_mv?: number;
+  torsades_cycle_duration_sec?: number;
 }
 
 // Helper function to capitalize strings
@@ -137,6 +146,15 @@ const ECGChart: React.FC = () => {
   const [vtDuration, setVtDuration] = useState<number>(5);
   const [vtRate, setVtRate] = useState<number>(160);
 
+  // TdP State
+  const [enableTorsades, setEnableTorsades] = useState<boolean>(false);
+  const [torsadesStartTime, setTorsadesStartTime] = useState<number>(0);
+  const [torsadesDuration, setTorsadesDuration] = useState<number>(8);
+  const [torsadesMinRate, setTorsadesMinRate] = useState<number>(180);
+  const [torsadesMaxRate, setTorsadesMaxRate] = useState<number>(280);
+  const [torsadesAmplitudeVariation, setTorsadesAmplitudeVariation] = useState<number>(0.5);
+  const [torsadesCycleDuration, setTorsadesCycleDuration] = useState<number>(5);
+
   const [chartTitle, setChartTitle] = useState<string>('Simulated ECG');
   const chartRef = useRef<ChartJS<'line', number[], string> | null>(null);
 
@@ -145,8 +163,9 @@ const ECGChart: React.FC = () => {
   const isAflutterActiveBase = enableAtrialFlutter;
   const isThirdDegreeBlockActiveBase = enableThirdDegreeAVBlock;
   const isVTActiveBase = enableVT;
+  const isTdpActiveBase = enableTorsades; // New for TdP
   
-  const dominantBaseRhythmOverridesPacSvtOrAVBlocks = isAfibActiveBase || isAflutterActiveBase || isThirdDegreeBlockActiveBase || isVTActiveBase;
+  const dominantBaseRhythmOverridesPacSvtOrAVBlocks = isAfibActiveBase || isAflutterActiveBase || isThirdDegreeBlockActiveBase || isVTActiveBase || isTdpActiveBase;
 
   const baseHrDisabled = dominantBaseRhythmOverridesPacSvtOrAVBlocks; 
   const avBlocksDisabled = dominantBaseRhythmOverridesPacSvtOrAVBlocks;
@@ -567,6 +586,55 @@ const ECGChart: React.FC = () => {
   const handleVtRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
     setVtRate(isNaN(val) ? 100 : Math.max(100, Math.min(250, val)));
+  };
+
+  // TdP Handlers
+  const handleEnableTorsadesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isEnabled = e.target.checked;
+    setEnableTorsades(isEnabled);
+    if (isEnabled) {
+      setEnableAtrialFibrillation(false);
+      setEnableAtrialFlutter(false);
+      setEnableThirdDegreeAVBlock(false);
+      setEnableVT(false);
+      setEnableFirstDegreeAVBlock(false);
+      setEnableMobitzIIAVBlock(false);
+      setEnableMobitzIWenckebach(false);
+      setEnablePac(false); 
+      setAllowSvtInitiationByPac(false);
+    }
+  };
+  const handleTorsadesStartTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setTorsadesStartTime(isNaN(val) ? 0 : Math.max(0, Math.min(duration, val)));
+  };
+  const handleTorsadesDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setTorsadesDuration(isNaN(val) ? 1 : Math.max(1, Math.min(duration, val)));
+  };
+  const handleTorsadesMinRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    const newMinRate = isNaN(val) ? 100 : Math.max(100, Math.min(val, 340)); // Cap at 340 to allow maxRate to be 350
+    setTorsadesMinRate(newMinRate);
+    if (newMinRate >= torsadesMaxRate) {
+      setTorsadesMaxRate(newMinRate + 10 > 350 ? 350 : newMinRate + 10);
+    }
+  };
+  const handleTorsadesMaxRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    const newMaxRate = isNaN(val) ? 350 : Math.max(110, Math.min(350, val));
+    setTorsadesMaxRate(newMaxRate);
+    if (newMaxRate <= torsadesMinRate) {
+      setTorsadesMinRate(newMaxRate - 10 < 100 ? 100 : newMaxRate - 10);
+    }
+  };
+  const handleTorsadesAmplitudeVariationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setTorsadesAmplitudeVariation(isNaN(val) ? 0.1 : Math.max(0.1, Math.min(1.5, val)));
+  };
+  const handleTorsadesCycleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setTorsadesCycleDuration(isNaN(val) ? 1 : Math.max(1, Math.min(20, val)));
   };
 
   // Style functions updated to use CSS variables

@@ -50,6 +50,17 @@ SVT_BEAT_PARAMS.update({
 
 VT_BEAT_PARAMS = PVC_PARAMS.copy() # Monomorphic VT beats often resemble PVCs
 
+TORSADES_POINTES_BEAT_PARAMS = {
+    "p_duration": 0.0, "p_amplitude": 0.0, "pr_interval": 0.0,
+    "qrs_duration": 0.18,
+    "q_amplitude": -0.1,
+    "r_amplitude": 1.5,
+    "s_amplitude": -0.3,
+    "st_duration": 0.10,
+    "t_duration": 0.20,
+    "t_amplitude": 0.0,
+}
+
 BEAT_MORPHOLOGIES = {
     "sinus": SINUS_PARAMS, "pvc": PVC_PARAMS, "pac": PAC_PARAMS,
     "junctional_escape": JUNCTIONAL_ESCAPE_PARAMS,
@@ -59,6 +70,7 @@ BEAT_MORPHOLOGIES = {
     "flutter_conducted_qrs": FLUTTER_CONDUCTED_QRS_PARAMS,
     "svt_beat": SVT_BEAT_PARAMS,
     "vt_beat": VT_BEAT_PARAMS,
+    "torsades_beat": TORSADES_POINTES_BEAT_PARAMS,
 }
 
 # --- Ectopic Beat Configuration Constants ---
