@@ -7,8 +7,8 @@ MIN_REFRACTORY_PERIOD_SEC = 0.200
 SINUS_PARAMS = {
     "p_duration": 0.09, "pr_interval": 0.16, "qrs_duration": 0.10,
     "st_duration": 0.12, "t_duration": 0.16, "p_amplitude": 0.15,
-    "q_amplitude": -0.1, "r_amplitude": 1.0, "s_amplitude": -0.25,
-    "t_amplitude": 0.3,
+    "q_amplitude": -0.2, "r_amplitude": 1.0, "s_amplitude": -0.25,
+    "t_amplitude": 0.25,
 }
 PVC_PARAMS = { # Also used as a base for VT beats
     "p_duration": 0.0, "p_amplitude": 0.0, "pr_interval": 0.0,
